@@ -55,7 +55,7 @@ function retryPending_() {
     const status=h.indexOf(META[1]);
     const values=s.getDataRange().getValues();
     for(let i=1;i<values.length;i++){
-      if(status<0||!values[i][status]||values[i][status]==='LỖI ĐỒNG BỘ'){
+      if(status<0||!values[i][status]||values[i][status]==='LỖI ĐỒNG BỘ'||(values[i][status]==='CHỜ XẾP NGÀY'&&values[i][h.indexOf(Q.start)] instanceof Date&&values[i][h.indexOf(Q.end)] instanceof Date)){
         try{processRow_(s,i+1);}catch(e){console.error(String(e));}
       }
     }
@@ -69,7 +69,8 @@ function safe_(v){const s=String(v||'');return /^[=+@\-]/.test(s)?"'"+s:s;}
 function parsePeople_(v){return String(v||'').split(',').map(s=>s.trim()).filter(Boolean);}
 function validate_(record){
   const start=record[Q.start],end=record[Q.end];
-  if(!(start instanceof Date)||!(end instanceof Date)||!Number.isFinite(+start)||!Number.isFinite(+end)||end<=start)
+  const flexible=record['Loại thời gian']==='Chưa cố định ngày'&&!start&&!end;
+  if(!flexible&&(!(start instanceof Date)||!(end instanceof Date)||!Number.isFinite(+start)||!Number.isFinite(+end)||end<=start))
     throw Error('Ngày giờ không hợp lệ hoặc kết thúc không sau bắt đầu.');
   const people=[];
   ['province','office','specialists'].forEach(k=>parsePeople_(record[Q[k]]).forEach(name=>{
@@ -77,11 +78,11 @@ function validate_(record){
     people.push(k+':'+name);
   }));
   if(!people.length) throw Error('Phải chọn ít nhất một người tham dự.');
-  [Q.title,Q.place,Q.unit,Q.contact].forEach(k=>{if(!String(record[k]||'').trim())throw Error('Thiếu '+k);});
+  [Q.title,Q.place,Q.contact].forEach(k=>{if(!String(record[k]||'').trim())throw Error('Thiếu '+k);});
   if(String(record[Q.title]).length>5000)throw Error('Nội dung tối đa 5000 ký tự.');
   const docs=String(record[Q.docs]||'').trim();
   if(docs&&!/^https:\/\//i.test(docs))throw Error('Link tài liệu phải bắt đầu bằng https://');
-  return {start,end,people,docs};
+  return {start,end,people,docs,flexible};
 }
 function encodePeople_(people){
   const chunks=[];let current=[];
@@ -134,6 +135,7 @@ function processRow_(sheet,row){
         put(META[1],'ĐÃ LÊN LỊCH');put(META[2],existing.id);put(META[3],'');return;
       }
       const v=validate_(record);
+      if(v.flexible){put(META[1],'CHỜ XẾP NGÀY');put(META[3],'Chưa cố định ngày. Chưa tạo sự kiện Calendar.');return;}
       let pageToken,conflict=false;
       do{
         const result=Calendar.Events.list(CONFIG.calendarId,{timeMin:v.start.toISOString(),timeMax:v.end.toISOString(),singleEvents:true,showDeleted:false,maxResults:2500,...(pageToken?{pageToken}:{})});
@@ -148,7 +150,7 @@ function processRow_(sheet,row){
       }while(pageToken&&!conflict);
       if(conflict){put(META[1],'CHỜ XỬ LÝ TRÙNG LỊCH');put(META[3],'Trùng thành phần hoặc khoảng thời gian có lịch nhập thủ công. Không tự thay thế.');return;}
       const peopleProperties=encodePeople_(v.people);
-      const description=[...['province','office','specialists'].map(k=>Q[k]+': '+String(record[Q[k]]||'')),Q.unit+': '+record[Q.unit],Q.contact+': '+record[Q.contact],v.docs?'Tài liệu: '+v.docs:'','Mã đăng ký: '+id].join('\n');
+      const description=[...['province','office','specialists'].map(k=>Q[k]+': '+String(record[Q[k]]||'')),record[Q.unit]?Q.unit+': '+record[Q.unit]:'','Người đăng ký: '+(record['Người đăng ký']||record[Q.contact]),v.docs?'Tài liệu: '+v.docs:'','Mã đăng ký: '+id].join('\n');
       const resource={id,summary:String(record[Q.title]),location:String(record[Q.place]),description,
         start:{dateTime:v.start.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},end:{dateTime:v.end.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},
         guestsCanModify:false,guestsCanInviteOthers:false,visibility:'default',extendedProperties:{private:peopleProperties}};
