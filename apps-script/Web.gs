@@ -16,6 +16,13 @@ function webDate_(value) {
   if(!Number.isFinite(+date)||Utilities.formatDate(date,'Asia/Ho_Chi_Minh',"yyyy-MM-dd'T'HH:mm")!==value)throw Error('Ngày giờ không hợp lệ.');
   return date;
 }
+function defaultEnd_(start){
+  const day=Utilities.formatDate(start,'Asia/Ho_Chi_Minh','yyyy-MM-dd');
+  const morning=webDate_(day+'T11:30'),afternoon=webDate_(day+'T17:30');
+  if(start<morning)return morning;
+  if(start<afternoon)return afternoon;
+  throw Error('Lịch bắt đầu từ 17h30 trở đi cần nhập giờ kết thúc.');
+}
 function webRecord_(data) {
   if(!data||typeof data!=='object'||data.website)throw Error('Không thể tiếp nhận đăng ký.');
   const record={};
@@ -36,8 +43,8 @@ function webRecord_(data) {
   record[Q.start]=data.mode==='flexible'?'':webDate_(data.start);
   if(data.mode==='fixed'&&typeof data.end!=='string')throw Error('Giờ kết thúc không hợp lệ.');
   const estimated=data.mode==='fixed'&&data.end==='';
-  record[Q.end]=data.mode==='flexible'?'':estimated?new Date(+record[Q.start]+60*60000):webDate_(data.end);
-  record['Cách xác định giờ kết thúc']=estimated?'Chưa xác định — tạm giữ 60 phút':data.mode==='flexible'?'':'Đã xác định';
+  record[Q.end]=data.mode==='flexible'?'':estimated?defaultEnd_(record[Q.start]):webDate_(data.end);
+  record['Cách xác định giờ kết thúc']=estimated?'Mặc định hết buổi':data.mode==='flexible'?'':'Đã xác định';
   validate_(record);return record;
 }
 function scheduleSubmit(token,requestId,data) {
