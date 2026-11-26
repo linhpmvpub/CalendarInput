@@ -1,4 +1,4 @@
-/* Public registration API. No API permits reading existing registrations or modifying events.
+/* Public registration API. Availability exposes only busy time ranges, never event content.
    Deploy as owner, access Anyone. Administrative functions must end with underscore. */
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('WebRegistration').setTitle('Đăng ký lịch làm việc')
@@ -8,7 +8,7 @@ function doGet() {
 function scheduleBootstrap() {
   const token=Utilities.getUuid()+Utilities.getUuid();
   CacheService.getScriptCache().put('web:'+token,JSON.stringify({created:Date.now(),count:0}),21600);
-  return {token,province:CONFIG.province,office:CONFIG.office,specialists:CONFIG.specialists};
+  return {token,province:CONFIG.province,office:CONFIG.office,specialists:CONFIG.specialists,today:Utilities.formatDate(new Date(),'Asia/Ho_Chi_Minh','yyyy-MM-dd')};
 }
 function webDate_(value) {
   if(typeof value!=='string'||!/^20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value))throw Error('Ngày giờ không hợp lệ.');
@@ -23,11 +23,18 @@ function webRecord_(data) {
     if(!Array.isArray(data[k])||data[k].length>CONFIG[k].length||data[k].some(n=>typeof n!=='string'||!CONFIG[k].includes(n)))throw Error('Thành phần không hợp lệ.');
     record[Q[k]]=[...new Set(data[k])].join(', ');
   });
-  ['unit','contact','place','title','docs'].forEach(k=>{
+  ['place','title','docs'].forEach(k=>{
     if(typeof data[k]!=='string'||data[k].length>(k==='title'?5000:k==='docs'?2000:300))throw Error('Thông tin quá dài hoặc không hợp lệ.');
     record[Q[k]]=data[k].trim();
   });
-  record[Q.start]=webDate_(data.start);record[Q.end]=webDate_(data.end);
+  if(typeof data.name!=='string'||!data.name.trim()||data.name.length>120)throw Error('Vui lòng ghi tên người đăng ký (tối đa 120 ký tự).');
+  if(!['fixed','flexible'].includes(data.mode))throw Error('Vui lòng chọn loại thời gian.');
+  if(typeof data.timeNote!=='string'||data.timeNote.length>500)throw Error('Gợi ý thời gian tối đa 500 ký tự.');
+  record['Người đăng ký']=data.name.trim();record[Q.contact]=data.name.trim();record[Q.unit]='';
+  record['Loại thời gian']=data.mode==='flexible'?'Chưa cố định ngày':'Ngày giờ cụ thể';
+  record['Gợi ý thời gian']=data.timeNote.trim();
+  record[Q.start]=data.mode==='flexible'?'':webDate_(data.start);
+  record[Q.end]=data.mode==='flexible'?'':webDate_(data.end);
   validate_(record);return record;
 }
 function scheduleSubmit(token,requestId,data) {
@@ -41,8 +48,11 @@ function scheduleSubmit(token,requestId,data) {
     if(!session||Date.now()-session.created<1500)throw Error('Phiên đã hết hạn hoặc chưa sẵn sàng. Hãy tải lại trang.');
     const ss=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'));
     sheet=ss.getSheetByName('Đăng ký từ website');
-    const headers=['Dấu thời gian',...Object.values(Q),...META];
-    if(!sheet){sheet=ss.insertSheet('Đăng ký từ website');sheet.getRange(1,1,1,headers.length).setValues([headers]);sheet.setFrozenRows(1);}
+    const required=['Dấu thời gian',...Object.values(Q),...META,'Người đăng ký','Loại thời gian','Gợi ý thời gian'];
+    if(!sheet){sheet=ss.insertSheet('Đăng ký từ website');sheet.setFrozenRows(1);}
+    let headers=sheet.getLastRow()?sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0]:[];
+    required.forEach(h=>{if(!headers.includes(h))headers.push(h);});
+    sheet.getRange(1,1,1,headers.length).setValues([headers]);
     // Include the server-issued token in the ID; clients cannot guess another session's registration ID.
     const id='a'+Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,token+requestId).map(b=>('0'+((b+256)%256).toString(16)).slice(-2)).join('').slice(0,40);
     const idColumn=headers.indexOf(META[0])+1;
@@ -66,4 +76,30 @@ function scheduleSubmit(token,requestId,data) {
   try {processRow_(sheet,row);}catch(e){console.error('Web submission processing failed: '+String(e));}
   const h=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0],v=sheet.getRange(row,1,1,h.length).getValues()[0];
   return {id:String(v[h.indexOf(META[0])]),status:String(v[h.indexOf(META[1])])};
+}
+
+function scheduleAvailability(day,selection) {
+  const start=webDate_(day+'T00:00'),end=new Date(+start+7*86400000);
+  if(!selection||typeof selection!=='object')throw Error('Thành phần không hợp lệ.');
+  const people=[];
+  ['province','office','specialists'].forEach(k=>{
+    if(!Array.isArray(selection[k])||selection[k].length>CONFIG[k].length||selection[k].some(n=>!CONFIG[k].includes(n)))throw Error('Thành phần không hợp lệ.');
+    [...new Set(selection[k])].forEach(n=>people.push(k+':'+n));
+  });
+  const busy=[];let pageToken,pages=0;
+  do{
+    const result=Calendar.Events.list(CONFIG.calendarId,{timeMin:start.toISOString(),timeMax:end.toISOString(),singleEvents:true,showDeleted:false,maxResults:2500,timeZone:'Asia/Ho_Chi_Minh',...(pageToken?{pageToken}:{})});
+    for(const e of result.items||[]){
+      if(e.status==='cancelled'||e.transparency==='transparent')continue;
+      let others=null;try{others=decodePeople_(e.extendedProperties&&e.extendedProperties.private);}catch(ignore){}
+      if(people.length&&others&&!people.some(p=>others.includes(p)))continue;
+      const a=e.start.dateTime?new Date(e.start.dateTime):webDate_(e.start.date+'T00:00');
+      const b=e.end.dateTime?new Date(e.end.dateTime):webDate_(e.end.date+'T00:00');
+      if(!Number.isFinite(+a)||!Number.isFinite(+b)||b<=a)throw Error('Chưa đọc đủ dữ liệu lịch. Vui lòng thử lại.');
+      busy.push({start:a.toISOString(),end:b.toISOString()});
+    }
+    pageToken=result.nextPageToken;pages++;
+    if(pageToken&&pages>=4)throw Error('Lịch có quá nhiều sự kiện. Vui lòng liên hệ bộ phận tổng hợp.');
+  }while(pageToken);
+  return {day,busy,updatedAt:new Date().toISOString(),filtered:people.length>0};
 }
