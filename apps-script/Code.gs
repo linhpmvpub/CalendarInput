@@ -10,10 +10,10 @@ const Q = { province:'Lãnh đạo UBND tỉnh', office:'Lãnh đạo Văn phòn
   specialists:'Chuyên viên', place:'Địa điểm', start:'Bắt đầu', end:'Kết thúc',
   title:'Nội dung', unit:'Đơn vị đăng ký', contact:'Người liên hệ', docs:'Link tài liệu' };
 const META = ['Mã đăng ký','Trạng thái xử lý','Calendar Event ID','Ghi chú xử lý'];
-function onOpen() {
-  SpreadsheetApp.getUi().createMenu('Xếp lịch').addItem('Xử lý lại dòng đang chọn','retrySelected').addToUi();
+function onOpen_() {
+  SpreadsheetApp.getUi().createMenu('Xếp lịch').addItem('Xử lý lại dòng đang chọn','retrySelected_').addToUi();
 }
-function setup() {
+function setup_() {
   if (JSON.stringify(CONFIG).includes('THAY_')) throw Error('Điền CONFIG trước khi chạy setup.');
   const p=PropertiesService.getScriptProperties();
   if(p.getProperty('FORM_ID')) throw Error('Đã tạo biểu mẫu. Không chạy setup lần nữa.');
@@ -43,10 +43,10 @@ function setup() {
   console.log('URL người trả lời: '+form.getPublishedUrl());
 }
 function handleSubmit(e) {
-  if(!e || !e.range) throw Error('Hàm này chỉ chạy bằng trigger From spreadsheet → On form submit.');
+  if(!e || !e.range || typeof e.range.getSheet!=='function') throw Error('Hàm này chỉ chạy bằng trigger From spreadsheet → On form submit.');
   processRow_(e.range.getSheet(),e.range.getRow());
 }
-function retryPending() {
+function retryPending_() {
   const ss=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'));
   ss.getSheets().forEach(s=>{
     if(s.getLastRow()<2)return;
@@ -61,7 +61,7 @@ function retryPending() {
     }
   });
 }
-function retrySelected() {
+function retrySelected_() {
   const s=SpreadsheetApp.getActiveSheet(),r=s.getActiveRange().getRow();
   processRow_(s,r);
 }
