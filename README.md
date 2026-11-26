@@ -1,104 +1,78 @@
 # Đăng ký lịch làm việc lãnh đạo
 
-Bản triển khai tối giản: **GitHub Pages → Google Form → Google Sheets → Apps Script → Google Calendar**.
+Website đang hoạt động: **https://linhpmvpub.github.io/CalendarInput/**
 
-## Trạng thái
+Người dùng nhập và gửi ngay trên website, không cần Gmail hoặc đăng nhập và không chuyển sang Google Form. Form có ba nhóm chọn nhiều người, tìm tên không dấu, thời gian bắt đầu/kết thúc, địa điểm, nội dung, đơn vị, người liên hệ và link tài liệu. Kết quả tạo lịch hoặc chờ xử lý trùng hiển thị ngay trên trang.
 
-Đã triển khai tại https://linhpmvpub.github.io/CalendarInput/ và kết nối Google Form → Sheet → Calendar ngày 26/11/2026. Form yêu cầu đăng nhập Google, thu email Verified và giới hạn người trả lời theo danh sách được cấp quyền. Danh sách nhân sự thật chỉ nằm trong hệ thống Google riêng.
+## Luồng đang vận hành
 
-Đã kiểm thử trực tiếp: gửi Form tạo sự kiện đúng UTC+7; đăng ký cùng người trong thời gian giao nhau bị giữ lại; xử lý lại dòng thành công không tạo bản sao. Sự kiện thử đã được hủy; hai dòng kiểm thử được giữ trong Sheet với trạng thái **KIỂM THỬ ĐÃ DỌN**. Bộ kiểm tra mã nguồn đạt 12 kiểm tra. Chưa kiểm tra trực tiếp bằng Gmail ngoài danh sách hoặc trên điện thoại.
+GitHub Pages nhúng giao diện HTML riêng do Apps Script phục vụ. Giao diện gọi `google.script.run` để lưu vào tab **Đăng ký từ website** trong Google Sheet, sau đó kiểm tra và tạo sự kiện trên Google Calendar. Apps Script chạy bằng quyền quản trị; người gửi không cần được chia sẻ Sheet hoặc Calendar. Bản này không thu email đã xác minh.
 
-Bản đang vận hành dùng Apps Script độc lập, lưu ID Form/Sheet trong Script Properties và có trigger On form submit. Không chạy lại `setup()` trên hệ thống đang hoạt động.
+Người có đường dẫn được xem danh sách nhân sự trong form và gửi đăng ký theo lựa chọn công khai của đơn vị. API không cho đọc các đăng ký khác hoặc sửa/xóa sự kiện. Quyền chia sẻ của Sheet và Calendar không bị thay đổi. Mã nguồn GitHub chỉ chứa cấu hình mẫu; tên thật được lưu trong Apps Script riêng và cấp cho giao diện lúc tải.
 
-## Vì sao chọn cách này?
+Google Form cũ và trigger cũ vẫn được giữ để bảo toàn hệ thống đã thiết lập; website hiện không dùng chúng. Các phản hồi cũ nằm ở tab **Câu trả lời biểu mẫu 1**.
 
-GitHub Pages chỉ phục vụ HTML/CSS/JavaScript tĩnh. Google Forms đảm nhiệm nhập liệu, đăng nhập Google và lưu phản hồi vào Sheet. Apps Script chạy bằng quyền của người cài trigger để tạo sự kiện. Không cần VPS, Firebase, Zapier hay Make. Google Forms hỗ trợ nhúng và checkbox chọn nhiều người. Form có giao diện theo Google; nếu cần giao diện riêng, tìm tên tức thời, tra cứu trạng thái hoặc cảnh báo trùng ngay trước khi gửi thì cần bản ứng dụng tùy biến sau này.
+## Kết quả kiểm thử ngày 26/11/2026
 
-## Cấu trúc
+- Gửi từ chính github.io: Sheet nhận dữ liệu, Calendar tạo đúng giờ Việt Nam, trang hiển thị thành công mà không chuyển địa chỉ.
+- Gửi cùng người trong khung giờ giao nhau: Sheet lưu **CHỜ XỬ LÝ TRÙNG LỊCH**, không tạo sự kiện thứ hai.
+- Xử lý lại dòng thành công: vẫn chỉ có một sự kiện.
+- Sự kiện thử đã được hủy. Hai dòng thử giữ lại với trạng thái **KIỂM THỬ ĐÃ DỌN** để đối chiếu.
+- 12 kiểm tra dữ liệu/Calendar metadata và 13 kiểm tra API web đạt yêu cầu, gồm ngày sai, tên giả, thời gian đảo, link không hợp lệ, phiên không hợp lệ và gửi lại không tạo thêm dòng.
+- Đã kiểm tra triển khai ở quyền **Bất kỳ ai**, thực thi bằng tài khoản quản trị. Chưa thử trên điện thoại thực tế hoặc phiên trình duyệt riêng đã đăng xuất.
 
-- `docs/index.html`: trang dùng trên GitHub Pages, tối ưu điện thoại.
-- `docs/config.js`: chỉ chứa đường dẫn Form dành cho người trả lời.
-- `apps-script/Code.gs`: tạo Form, liên kết Sheet, cài trigger, kiểm tra và tạo lịch.
-- `apps-script/appsscript.json`: múi giờ Việt Nam và Calendar API v3.
-- `tests/validation.cjs`: kiểm tra dữ liệu và múi giờ, chạy bằng `node tests/validation.cjs`.
+## Vận hành
 
-## Thiết lập Google, theo đúng thứ tự
+Quản trị xem tab **Đăng ký từ website** trong Sheet và theo dõi cột **Trạng thái xử lý**:
 
-1. Dùng Gmail của người quản trị, tạo **Google Sheet trống riêng**. Gmail đó phải có quyền tạo/sửa sự kiện trong Calendar đích. Chỉ chia sẻ quyền sửa Sheet cho quản trị viên.
-2. Trong Sheet chọn **Extensions → Apps Script**. Dán `apps-script/Code.gs` vào `Code.gs`.
-3. Trong `CONFIG`, nhập Calendar ID và ba danh sách nhân sự thật. Tên phải duy nhất trong từng nhóm và không chứa dấu phẩy. Không commit cấu hình nhân sự này lên GitHub công khai.
-4. Calendar ID đã được cung cấp trong cuộc trao đổi; lấy từ **Calendar → Settings and sharing → Integrate calendar → Calendar ID**, hoặc tham số `src` của liên kết nhúng. Không dán toàn bộ URL vào `calendarId`.
-5. Trong Project Settings, đặt time zone **Asia/Ho_Chi_Minh**, bật hiển thị `appsscript.json` và thay bằng tệp manifest kèm theo. Kiểm tra **Services → Google Calendar API v3** đã được bật. Nếu dự án dùng Google Cloud project tự quản lý, bật Google Calendar API trong Cloud Console.
-6. Chạy `setup()` một lần và cấp quyền. Script kiểm tra Calendar, tạo Form, nối với Sheet và cài trigger **From spreadsheet → On form submit**. Form ban đầu ngừng nhận đăng ký để chờ cấu hình quyền. Không chạy lại setup khi đã tạo Form; nếu setup lỗi giữa chừng, kiểm tra đối tượng đã tạo trước khi sửa.
-7. Mở đường dẫn chỉnh sửa Form trong Execution log. **Settings → Responses → Collect email addresses → Verified**. Không chọn Responder input. Trong hai câu hỏi **Bắt đầu** và **Kết thúc**, mở menu ba chấm và kiểm tra **Bao gồm giờ** cùng **Bao gồm năm** đã bật; mở Form trả lời để xác nhận có ô giờ và phút. Tắt giới hạn một phản hồi vì mỗi người cần đăng ký nhiều lần. Tắt sửa phản hồi và chia sẻ bản tóm tắt kết quả.
-8. **Publish/Manage responders**: chỉ cấp quyền trả lời cho các Gmail được phép hoặc nhóm được quản lý; không bật “Anyone with the link” khi dùng nội bộ. Thu email Verified xác minh danh tính nhưng không tự giới hạn người được phép — cần cả hai thiết lập. Kiểm tra bằng một Gmail được phép và một Gmail ngoài danh sách.
-9. Bật nhận phản hồi và Publish Form. Copy URL đầy đủ dạng `https://docs.google.com/forms/d/e/.../viewform`, không dùng link chỉnh sửa hoặc link rút gọn. Dán vào `docs/config.js`.
-10. Người quản trị xem tab phản hồi trong Sheet. Sau lần gửi đầu tiên, các cột trạng thái xử lý sẽ tự xuất hiện. Trigger chạy tự động, không cần bấm chạy tay.
-
-Không cần deploy Apps Script thành web app cho phương án này. Không cần cấp quyền Sheet/Calendar cho người chỉ đăng ký. Link tài liệu không tự cấp quyền truy cập tài liệu.
-
-## Bật GitHub Pages
-
-Trong repository **Settings → Pages → Build and deployment**:
-
-- Source: **Deploy from a branch**.
-- Branch: **main**, folder: **/docs**, Save.
-- Địa chỉ đang hoạt động: `https://linhpmvpub.github.io/CalendarInput/`.
-
-Chỉ `/docs` được xuất bản thành website. Repository hiện công khai: không đưa tên nhân sự nội bộ, tài liệu, dữ liệu đăng ký hoặc thông tin đăng nhập vào repository. URL Form không phải mật khẩu; quyền truy cập phải do Google Forms kiểm soát.
-
-## Trường nhập liệu
-
-| Trường | Cách nhập |
+| Trạng thái | Ý nghĩa |
 | --- | --- |
-| Lãnh đạo UBND tỉnh | Checkbox, nhiều người |
-| Lãnh đạo Văn phòng UBND tỉnh | Checkbox, nhiều người |
-| Chuyên viên | Checkbox, nhiều người |
-| Đơn vị đăng ký; người liên hệ | Văn bản bắt buộc |
-| Địa điểm | Văn bản bắt buộc |
-| Bắt đầu; kết thúc | Ngày và giờ bắt buộc, UTC+7 |
-| Nội dung | Nhiều dòng, bắt buộc |
-| Link tài liệu | HTTPS, không bắt buộc |
-| Email người gửi | Google Forms thu email Verified |
+| ĐÃ LÊN LỊCH | Đã tạo sự kiện Calendar |
+| CHỜ XỬ LÝ TRÙNG LỊCH | Có người trùng lịch hoặc sự kiện nhập tay cần kiểm tra; chưa tạo sự kiện |
+| LỖI ĐỒNG BỘ | Đã lưu dữ liệu, cần xem Ghi chú xử lý và nhật ký Apps Script |
+| ĐANG XỬ LÝ | Đang chờ xử lý hoặc lần thực thi bị gián đoạn |
+| KIỂM THỬ ĐÃ DỌN | Dữ liệu kiểm thử, không phải lịch công tác |
 
-Ít nhất một người phải được chọn trong ba nhóm. Google Forms không kiểm tra được điều kiện gộp này trước khi gửi; Script kiểm tra sau và ghi lỗi vào Sheet. Trạng thái gửi thành công của Form chỉ là xác nhận đã nhận dữ liệu.
+Không chỉnh sửa mã đăng ký/ID sự kiện. Sửa hoặc hủy lịch đã tạo được thực hiện trên Calendar bởi quản trị. Bản này đồng bộ một chiều khi tạo, không tự đồng bộ các chỉnh sửa trong Sheet.
 
-## Quy tắc vận hành đã có trong mã
+Hàm quản trị `retryPending_()` được đặt riêng tư để khách truy cập web không gọi được; khi cần chạy thủ công trong trình biên tập, quản trị có thể tạo hàm tạm `function runAdminRetry(){ retryPending_(); }`, chạy rồi gỡ hàm tạm; **không đưa hàm tạm vào phiên bản web triển khai**. Hàm xử lý lại chỉ xem các dòng trống trạng thái hoặc LỖI ĐỒNG BỘ; dòng đang xử lý bị gián đoạn cần được quản trị kiểm tra và đặt trạng thái LỖI ĐỒNG BỘ trước khi thử lại. Dòng chờ trùng chỉ xử lý lại sau khi giải quyết xung đột. Không tự thay thế sự kiện cũ.
 
-- Lịch không trùng người tham dự sẽ tự tạo vào Calendar chung.
-- Nếu có người trùng lịch, đăng ký vẫn lưu trên Sheet nhưng trạng thái là **CHỜ XỬ LÝ TRÙNG LỊCH**; không tạo Calendar event và không sửa lịch cũ.
-- Sự kiện Calendar nhập thủ công không có mã thành phần: tạm giữ mọi đăng ký trùng khoảng thời gian để quản trị kiểm tra. Quy tắc thận trọng này có thể giữ cả lịch không thực sự trùng người. Sự kiện free/transparent không chặn.
-- Chỉ kiểm tra Calendar chung đã cấu hình, không quét lịch riêng của từng Gmail; không kiểm tra trùng phòng họp.
-- Mã đăng ký cố định đồng thời là Calendar event ID. Khi mất kết nối sau khi tạo, chạy lại sẽ đọc đúng sự kiện thay vì tạo bản thứ hai. ScriptLock tuần tự hóa các lượt xử lý trong cùng script.
-- Trạng thái **LỖI ĐỒNG BỘ** lưu nguyên nhân. Với dự án độc lập đang vận hành, người quản trị sửa dữ liệu cần thiết rồi mở Apps Script, chọn và chạy `retryPending()` để xử lý lại các dòng lỗi/chưa xử lý. Dòng chờ trùng phải được quản trị xem xét; không tự ghi đè lịch cũ. Với bản script gắn trực tiếp vào Sheet, có thể chọn dòng → menu **Xếp lịch → Xử lý lại dòng đang chọn**. Không cài vòng lặp tự thử lại; phải theo dõi lỗi trigger qua Apps Script/Google email.
-- Với lịch đã lên Calendar, chạy lại chỉ đối chiếu ID, **không cập nhật nội dung hoặc giờ**. Bản này đồng bộ một chiều khi tạo; đổi/hủy lịch do quản trị xử lý trên Calendar. Không sửa/xóa mã đăng ký hoặc ID sự kiện.
-- Người đăng ký không có nút sửa/xóa lịch. Chỉ cấp quyền xem Calendar cho họ; chỉ quản trị có quyền sửa. Đây là cách bảo vệ lịch đã chốt, bao gồm lịch ưu tiên. Chưa có phân hạng ưu tiên hay màn hình duyệt riêng. Người có quyền sửa trực tiếp Calendar vẫn có thể sửa mọi lịch theo quyền Google cấp.
-- Nếu quản trị sửa Calendar cùng lúc script đang kiểm tra/tạo sự kiện, vẫn có khả năng phát sinh trùng. Google Calendar không có thao tác “kiểm tra rồi đặt chỗ” nguyên tử; cần quản trị xử lý trường hợp này.
-- Một sự kiện chung chứa danh sách người tham dự trong mô tả, không tạo bản riêng cho từng lãnh đạo và không tự gửi thư mời. Người xem dùng Calendar chung.
+## Quy tắc xếp lịch
 
-## Nghiệm thu trước khi dùng thật
+- Ít nhất một người trong ba nhóm; tên phải nằm trong danh sách máy chủ.
+- Kết thúc sau bắt đầu; thời gian theo Asia/Ho_Chi_Minh (UTC+7).
+- Nội dung tối đa 5.000 ký tự. Link tài liệu phải dùng HTTPS. Link không tự cấp quyền xem tài liệu.
+- Trùng người trong Calendar chung: giữ đăng ký chờ xử lý.
+- Lịch nhập thủ công chưa có mã thành phần: tạm giữ mọi đăng ký giao nhau để quản trị kiểm tra. Sự kiện free/transparent không chặn.
+- Không kiểm tra lịch cá nhân hoặc phòng họp. Không có phân hạng ưu tiên hay màn hình duyệt riêng.
+- Một sự kiện chung chứa thành phần trong mô tả, không gửi thư mời và không tạo lịch riêng cho từng người.
+- ID cố định cho mỗi lần gửi và khóa xử lý hạn chế tạo trùng. Khi kết nối gián đoạn, bấm gửi lại trên cùng trang dùng lại mã cũ. Tải lại trang tạo phiên mới; không gửi lại một đăng ký đã thành công.
+- Kiểm tra xung đột và tạo lịch không phải giao dịch nguyên tử với chỉnh sửa Calendar trực tiếp của quản trị; vẫn cần quản trị xử lý nếu hai bên thay đổi cùng lúc.
 
-1. Dùng Calendar thử riêng trước; không gửi thử vào lịch lãnh đạo đang vận hành.
-2. Kiểm tra Gmail ngoài danh sách bị từ chối vào Form.
-3. Gửi lịch 08:00–09:00, chọn nhiều người: Sheet có dữ liệu, trạng thái ĐÃ LÊN LỊCH, Calendar đúng giờ Việt Nam.
-4. Gửi 08:30–09:30 có người trùng: chờ xử lý, Calendar không thêm sự kiện.
-5. Gửi cùng khung giờ nhưng thành phần khác: tạo được, trừ khi có lịch nhập thủ công chưa xác định người.
-6. Chạy lại dòng đã thành công: vẫn chỉ một event.
-7. Giờ kết thúc trước bắt đầu hoặc không chọn người: lưu lỗi, không tạo event.
-8. Ngắt quyền Calendar: ghi lỗi; khôi phục quyền và chạy lại, không mất đăng ký.
-9. Kiểm tra người xem không sửa/xóa được lịch; không công khai Calendar/Sheet nếu nội dung chỉ dành cho nội bộ.
-10. Kiểm tra Form trên điện thoại và đăng nhập trong iframe. Nếu trình duyệt chặn đăng nhập/nhúng, dùng link “Mở biểu mẫu đăng ký”.
+## Cấu trúc và cập nhật
 
-## Giới hạn và chi phí
+- `docs/index.html`: trang GitHub Pages nhúng form riêng.
+- `docs/config.js`: URL công khai của Apps Script web app; không có khóa bí mật.
+- `apps-script/Code.gs`: xử lý dữ liệu, kiểm tra trùng và Calendar; CONFIG trong repo là mẫu.
+- `apps-script/Web.gs`: doGet và API gửi đăng ký công khai.
+- `apps-script/WebRegistration.html`: giao diện nhập liệu riêng.
+- `apps-script/appsscript.json`: múi giờ Việt Nam, Calendar API v3.
+- `tests/validation.cjs`, `tests/web.cjs`: kiểm tra bằng Node.js.
 
-Thông thường không có phí máy chủ hoặc công cụ trung gian riêng cho quy mô nội bộ nhỏ với các tài khoản sẵn có. Apps Script có quota và giới hạn thời gian chạy; đây không phải cam kết vận hành không giới hạn. Thời điểm chạy trigger không có cam kết tức thì. Người quản trị cần theo dõi trạng thái lỗi và tránh đổi chủ sở hữu/cắt quyền tài khoản cài trigger mà chưa bàn giao.
+Hệ thống hiện có đã cấu hình CONFIG thật, Script Property `SHEET_ID`, Calendar API và quyền quản trị. **Không chạy lại setup trên hệ thống đang vận hành.** Khi cập nhật, giữ nguyên cấu hình và Script Properties. Dán Web.gs, WebRegistration.html vào đúng tên tệp trong Apps Script. Các hàm quản trị phải kết thúc bằng dấu gạch dưới để không thể gọi từ giao diện công khai.
 
-## Nguồn chính thức
+Trong Apps Script chọn **Triển khai → Quản lý tùy chọn triển khai → Chỉnh sửa → Phiên bản mới → Triển khai**. Giữ **Thực thi bằng tên: Tôi**, **Người có quyền truy cập: Bất kỳ ai**. Dùng cùng hoạt động triển khai để giữ URL hiện có. Nếu tạo hoạt động triển khai khác, cập nhật `window.WEB_APP_URL` trong `docs/config.js`.
 
-- https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages
-- https://support.google.com/docs/answer/2839588
-- https://support.google.com/docs/answer/139706
-- https://developers.google.com/apps-script/guides/triggers/installable
-- https://developers.google.com/apps-script/reference/forms/form
-- https://developers.google.com/workspace/calendar/api/v3/reference/events/insert
-- https://support.google.com/calendar/answer/15716974
+GitHub Pages dùng nhánh **main**, thư mục **/docs**. Mỗi commit tự triển khai lại. Nếu trang còn bản cũ, tải lại bằng Ctrl+F5.
+
+## Giới hạn
+
+Không cần máy chủ trả phí, không bật dịch vụ thanh toán. Apps Script và Calendar vẫn có hạn mức sử dụng. Form công khai có bẫy spam đơn giản, kiểm tra đầu vào, giới hạn 20 đăng ký/phiên và 300 đăng ký/ngày để bảo vệ quota; đây không phải cơ chế chống bot mạnh hoặc xác minh danh tính. Tên người liên hệ do người gửi tự nhập. Cần quản trị theo dõi lịch và trạng thái lỗi.
+
+## Tài liệu chính thức
+
+- https://developers.google.com/apps-script/guides/web
+- https://developers.google.com/apps-script/guides/html/communication
+- https://developers.google.com/apps-script/reference/html/x-frame-options-mode
+- https://developers.google.com/apps-script/guides/services/quotas
+- https://developers.google.com/workspace/calendar/api/guides/quotas
