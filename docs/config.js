@@ -1,3 +1,2 @@
-// Dán URL người trả lời Google Form, dạng https://docs.google.com/forms/d/e/.../viewform
-// Không đặt email nội bộ, danh sách nhân sự, token hoặc ID Sheet trong tệp công khai này.
-window.FORM_URL = '';
+// Chỉ đường dẫn dành cho người trả lời; dữ liệu nội bộ được lưu trong Google.
+window.FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSd6WG5YvQeG9ryB2BjFrySewq3Q9Z1EeQuiUrHLlIhLYbnTfw/viewform';
