@@ -1,7 +1,7 @@
 /* Public registration API. No API permits reading existing registrations or modifying events.
    Deploy as owner, access Anyone. Administrative functions must end with underscore. */
 function doGet() {
-  return HtmlService.createHtmlOutputFromFile('Web').setTitle('Đăng ký lịch làm việc')
+  return HtmlService.createHtmlOutputFromFile('WebRegistration').setTitle('Đăng ký lịch làm việc')
     .addMetaTag('viewport','width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
