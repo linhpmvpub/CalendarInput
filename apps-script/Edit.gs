@@ -2,7 +2,7 @@
    Calendar conditional writes + a durable Sheet journal protect retries and concurrent edits. */
 const EDIT={code:'Mã chỉnh sửa (giữ riêng)',original:'Đăng ký ban đầu (JSON)',pending:'Giao dịch chỉnh sửa',last:'Thao tác chỉnh sửa cuối',at:'Chỉnh sửa gần nhất',log:'Nhật ký chỉnh sửa'};
 function editHash_(value){return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,value).map(b=>('0'+((b+256)%256).toString(16)).slice(-2)).join('');}
-function editHeaders_(sheet){return reverseHeaders_(sheet,Object.values(EDIT).filter(x=>x!==EDIT.log));}
+function editHeaders_(sheet){return reverseHeaders_(sheet,['Người đăng ký','Loại thời gian','Gợi ý thời gian','Cách xác định giờ kết thúc',...Object.values(EDIT).filter(x=>x!==EDIT.log)]);}
 function editRead_(sheet,row){const h=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0],v=sheet.getRange(row,1,1,h.length).getValues()[0];return {sheet,row,h,record:Object.fromEntries(h.map((n,i)=>[n,v[i]]))};}
 function editPut_(ref,name,value){ref.sheet.getRange(ref.row,ref.h.indexOf(name)+1).setValue(value instanceof Date?value:safe_(value));ref.record[name]=value;}
 function ensureEditCode_(sheet,row){
