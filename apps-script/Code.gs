@@ -150,10 +150,10 @@ function processRow_(sheet,row){
       }while(pageToken&&!conflict);
       if(conflict){put(META[1],'CHỜ XỬ LÝ TRÙNG LỊCH');put(META[3],'Trùng thành phần hoặc khoảng thời gian có lịch nhập thủ công. Không tự thay thế.');return;}
       const peopleProperties=encodePeople_(v.people);
-      const endEstimated=String(record['Cách xác định giờ kết thúc']||'').startsWith('Chưa xác định');
+      const endEstimated=String(record['Cách xác định giờ kết thúc']||'').startsWith('Mặc định hết buổi');
       if(endEstimated)peopleProperties.endEstimated='true';
       const description=[...['province','office','specialists'].map(k=>Q[k]+': '+String(record[Q[k]]||'')),record[Q.unit]?Q.unit+': '+record[Q.unit]:'','Người đăng ký: '+(record['Người đăng ký']||record[Q.contact]),v.docs?'Tài liệu: '+v.docs:'','Mã đăng ký: '+id].join('\n');
-      const resource={id,summary:String(record[Q.title]),location:String(record[Q.place]),description:description+(endEstimated?'\nGiờ kết thúc chưa xác định; tạm giữ 60 phút để kiểm tra trùng lịch.':''),
+      const resource={id,summary:String(record[Q.title]),location:String(record[Q.place]),description:description+(endEstimated?'\nGiờ kết thúc mặc định hết buổi: '+Utilities.formatDate(v.end,'Asia/Ho_Chi_Minh','HH:mm')+'.':''),
         start:{dateTime:v.start.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},end:{dateTime:v.end.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},
         guestsCanModify:false,guestsCanInviteOthers:false,visibility:'default',extendedProperties:{private:peopleProperties}};
       let event;
