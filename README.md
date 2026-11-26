@@ -20,7 +20,7 @@ Google Form cũ và trigger cũ vẫn được giữ để bảo toàn hệ th�
 - Gửi cùng người trong khung giờ giao nhau: Sheet lưu **CHỜ XỬ LÝ TRÙNG LỊCH**, không tạo sự kiện thứ hai.
 - Xử lý lại dòng thành công: vẫn chỉ có một sự kiện.
 - Sự kiện thử đã được hủy. Các dòng thử giữ lại với trạng thái **KIỂM THỬ ĐÃ DỌN** để đối chiếu.
-- Các kiểm tra dữ liệu/Calendar metadata và API web đạt yêu cầu, gồm ngày sai, tên giả, thời gian đảo, link không hợp lệ, phiên không hợp lệ, gửi lại không tạo thêm dòng, lịch chưa cố định ngày, lọc giờ bận, phân trang, giờ kết thúc không bắt buộc, giữ 60 phút kể cả qua nửa đêm, hiển thị đúng nội dung/thành phần lãnh đạo và xử lý lỗi Calendar.
+- Các kiểm tra dữ liệu/Calendar metadata và API web đạt yêu cầu, gồm ngày sai, tên giả, thời gian đảo, link không hợp lệ, phiên không hợp lệ, gửi lại không tạo thêm dòng, lịch chưa cố định ngày, lọc giờ bận, phân trang, giờ kết thúc không bắt buộc, mặc định 11h30/17h30, yêu cầu giờ kết thúc từ 17h30 trở đi, hiển thị đúng nội dung/thành phần lãnh đạo và xử lý lỗi Calendar.
 - Kiểm thử trực tiếp bản mới: tên người đăng ký được lưu; đăng ký chưa cố định ngày không có ngày/ID sự kiện; khoảng bận khớp sự kiện kiểm thử; chọn khung trống điền đúng giờ.
 - Đã kiểm tra giao diện nhúng thực tế ở chiều rộng 390 px và 360 px, không tràn ngang; kiểm tra bảng lịch và các ô ngày giờ.
 - Đã kiểm tra triển khai ở quyền **Bất kỳ ai**, thực thi bằng tài khoản quản trị. Chưa thử trên điện thoại thực tế hoặc phiên trình duyệt riêng đã đăng xuất.
@@ -46,7 +46,7 @@ Hàm quản trị `retryPending_()` được đặt riêng tư để khách truy
 
 - Ít nhất một người trong ba nhóm; tên phải nằm trong danh sách máy chủ.
 - Chưa cố định ngày: không yêu cầu ngày giờ, có ô gợi ý thời gian không bắt buộc; không chiếm khung giờ Calendar.
-- Khi có ngày cụ thể: nhập Ngày, Giờ bắt đầu và Giờ kết thúc (nếu có); thứ hiển thị tự động bằng tiếng Việt. Giờ kết thúc nhập phải sau giờ bắt đầu trong cùng ngày. Để trống giờ kết thúc: tạm giữ 60 phút trên Calendar và ghi rõ chưa xác định trong Sheet/Calendar/tra cứu. Quản trị có thể điều chỉnh trên Calendar khi đã chốt; thời gian theo Asia/Ho_Chi_Minh (UTC+7).
+- Khi có ngày cụ thể: nhập Ngày, Giờ bắt đầu và Giờ kết thúc (nếu có); thứ hiển thị tự động bằng tiếng Việt. Giờ kết thúc nhập phải sau giờ bắt đầu trong cùng ngày. Để trống giờ kết thúc: bắt đầu trước 11h30 mặc định kết thúc 11h30; bắt đầu từ 11h30 đến trước 17h30 mặc định kết thúc 17h30; từ 17h30 trở đi phải nhập giờ kết thúc. Ghi rõ mặc định hết buổi trong Sheet/Calendar/tra cứu. Quản trị có thể điều chỉnh trên Calendar khi đã chốt; thời gian theo Asia/Ho_Chi_Minh (UTC+7).
 - Nội dung tối đa 5.000 ký tự. Link tài liệu phải dùng HTTPS. Link không tự cấp quyền xem tài liệu.
 - Trùng người trong Calendar chung: giữ đăng ký chờ xử lý.
 - Lịch nhập thủ công chưa có mã thành phần: tạm giữ mọi đăng ký giao nhau để quản trị kiểm tra. Sự kiện free/transparent không chặn.
