@@ -66,6 +66,32 @@ function validate_(record){
   if(docs&&!/^https:\/\//i.test(docs))throw Error('Link tài liệu phải bắt đầu bằng https://');
   return {start,end,people,docs};
 }
+function encodePeople_(people){
+  const chunks=[];let current=[];
+  people.forEach(person=>{
+    if(Utilities.newBlob(JSON.stringify([...current,person])).getBytes().length>900){
+      if(!current.length)throw Error('Tên thành phần quá dài.');
+      chunks.push(current);current=[];
+    }
+    current.push(person);
+  });
+  if(current.length)chunks.push(current);
+  const result={peopleChunks:String(chunks.length)};
+  chunks.forEach((chunk,i)=>{result['people'+i]=JSON.stringify(chunk);});
+  return result;
+}
+function decodePeople_(properties){
+  if(!properties)return null;
+  if(properties.people)return JSON.parse(properties.people);
+  const count=Number(properties.peopleChunks);
+  if(!Number.isInteger(count)||count<1||count>50)return null;
+  let result=[];
+  for(let i=0;i<count;i++){
+    if(!properties['people'+i])return null;
+    result=result.concat(JSON.parse(properties['people'+i]));
+  }
+  return result;
+}
 function calendarGet_(id){
   try{return Calendar.Events.get(CONFIG.calendarId,id);}catch(e){
     if(/404|not found/i.test(String(e)))return null;
@@ -96,21 +122,19 @@ function processRow_(sheet,row){
         const result=Calendar.Events.list(CONFIG.calendarId,{timeMin:v.start.toISOString(),timeMax:v.end.toISOString(),singleEvents:true,showDeleted:false,maxResults:2500,...(pageToken?{pageToken}:{})});
         for(const event of result.items||[]){
           if(event.transparency==='transparent')continue;
-          const encoded=event.extendedProperties&&event.extendedProperties.private&&event.extendedProperties.private.people;
+          const others=decodePeople_(event.extendedProperties&&event.extendedProperties.private);
           // Lịch nhập thủ công không có mã người: giữ lại để quản trị kiểm tra, không tự chèn.
-          if(!encoded){conflict=true;break;}
-          const others=JSON.parse(encoded);
+          if(!others){conflict=true;break;}
           if(v.people.some(x=>others.includes(x))){conflict=true;break;}
         }
         pageToken=result.nextPageToken;
       }while(pageToken&&!conflict);
       if(conflict){put(META[1],'CHỜ XỬ LÝ TRÙNG LỊCH');put(META[3],'Trùng thành phần hoặc khoảng thời gian có lịch nhập thủ công. Không tự thay thế.');return;}
-      const people=JSON.stringify(v.people);
-      if(Utilities.newBlob(people).getBytes().length>1000)throw Error('Quá nhiều thành phần cho một đăng ký.');
+      const peopleProperties=encodePeople_(v.people);
       const description=[...['province','office','specialists'].map(k=>Q[k]+': '+String(record[Q[k]]||'')),Q.unit+': '+record[Q.unit],Q.contact+': '+record[Q.contact],v.docs?'Tài liệu: '+v.docs:'','Mã đăng ký: '+id].join('\n');
       const resource={id,summary:String(record[Q.title]),location:String(record[Q.place]),description,
         start:{dateTime:v.start.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},end:{dateTime:v.end.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},
-        guestsCanModify:false,guestsCanInviteOthers:false,visibility:'default',extendedProperties:{private:{people}}};
+        guestsCanModify:false,guestsCanInviteOthers:false,visibility:'default',extendedProperties:{private:peopleProperties}};
       let event;
       try{event=Calendar.Events.insert(resource,CONFIG.calendarId,{sendUpdates:'none'});}catch(e){
         // Đã tạo nhưng mất phản hồi: đọc lại đúng ID, không tạo sự kiện thứ hai.
