@@ -52,7 +52,7 @@ function scheduleSubmit(token,requestId,data) {
   const record=webRecord_(data);
   const cache=CacheService.getScriptCache(),key='web:'+token;
   const lock=LockService.getScriptLock();lock.waitLock(30000);
-  let sheet,row;
+  let sheet,row,editCode;
   try {
     const session=JSON.parse(cache.get(key)||'null');
     if(!session||Date.now()-session.created<1500)throw Error('Phiên đã hết hạn hoặc chưa sẵn sàng. Hãy tải lại trang.');
@@ -62,6 +62,7 @@ function scheduleSubmit(token,requestId,data) {
     if(!sheet){sheet=ss.insertSheet('Đăng ký từ website');sheet.setFrozenRows(1);}
     let headers=sheet.getLastRow()?sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0]:[];
     required.forEach(h=>{if(!headers.includes(h))headers.push(h);});
+    if(headers.length>sheet.getMaxColumns())sheet.insertColumnsAfter(sheet.getMaxColumns(),headers.length-sheet.getMaxColumns());
     sheet.getRange(1,1,1,headers.length).setValues([headers]);
     // Include the server-issued token in the ID; clients cannot guess another session's registration ID.
     const id='a'+Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,token+requestId).map(b=>('0'+((b+256)%256).toString(16)).slice(-2)).join('').slice(0,40);
@@ -82,10 +83,11 @@ function scheduleSubmit(token,requestId,data) {
       [Q.start,Q.end,'Dấu thời gian'].forEach(h=>sheet.getRange(row,headers.indexOf(h)+1).setNumberFormat('dd/MM/yyyy HH:mm'));
       SpreadsheetApp.flush();
     }
+    editCode=ensureEditCode_(sheet,row);
   } finally {lock.releaseLock();}
   try {processRow_(sheet,row);}catch(e){console.error('Web submission processing failed: '+String(e));}
   const h=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0],v=sheet.getRange(row,1,1,h.length).getValues()[0];
-  return {id:String(v[h.indexOf(META[0])]),status:String(v[h.indexOf(META[1])])};
+  return {id:String(v[h.indexOf(META[0])]),status:String(v[h.indexOf(META[1])]),editCode};
 }
 
 function scheduleAvailability(day,selection) {
