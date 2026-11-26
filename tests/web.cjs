@@ -2,11 +2,11 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const code=fs.readFileSync(__dirname+'/../apps-script/Code.gs','utf8')+'\n'+fs.readFileSync(__dirname+'/../apps-script/Web.gs','utf8');
 const rows=[],cache=new Map(),props=new Map([['SHEET_ID','test']]);
 let initialized=false;
-const sheet={getLastRow:()=>rows.length,getLastColumn:()=>rows[0]?.length||0,setFrozenRows:()=>{},getRange(r,c,n=1,m=1){return {setValues(v){v.forEach((line,i)=>{rows[r-1+i]??=[];line.forEach((v,j)=>rows[r-1+i][c-1+j]=v);});},getValues(){return Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>rows[r-1+i]?.[c-1+j]??''));},setNumberFormat(){},createTextFinder(id){return {matchEntireCell(){return this;},findNext(){const idx=rows.findIndex((v,i)=>i>=r-1&&v[c-1]===id);return idx<0?null:{getRow:()=>idx+1};}};}};}};
-const context={assert,console,Utilities:{DigestAlgorithm:{SHA_256:'sha256'},getUuid:()=>crypto.randomUUID(),computeDigest:(a,s)=>[...crypto.createHash(a).update(s).digest()],formatDate:(d,tz,pattern)=>{const s=new Date(+d+7*3600000).toISOString();return pattern==='yyyy-MM-dd'?s.slice(0,10):s.slice(0,16);}},CacheService:{getScriptCache:()=>({get:k=>cache.get(k),put:(k,v)=>cache.set(k,v)})},PropertiesService:{getScriptProperties:()=>({getProperty:k=>props.get(k),setProperty:(k,v)=>props.set(k,v)})},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},SpreadsheetApp:{openById:()=>({getSheetByName:()=>initialized?sheet:null,insertSheet:()=>{initialized=true;return sheet;}}),flush(){}}};
+const sheet={getLastRow:()=>rows.length,getLastColumn:()=>rows[0]?.length||0,setFrozenRows:()=>{},getRange(r,c,n=1,m=1){return {setValues(v){v.forEach((line,i)=>{rows[r-1+i]??=[];line.forEach((v,j)=>rows[r-1+i][c-1+j]=v);});},getValues(){return Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>rows[r-1+i]?.[c-1+j]??''));},setNumberFormat(){},setValue(v){rows[r-1]??=[];rows[r-1][c-1]=v;},createTextFinder(id){return {matchEntireCell(){return this;},findNext(){const idx=rows.findIndex((v,i)=>i>=r-1&&v[c-1]===id);return idx<0?null:{getRow:()=>idx+1};}};}};}};
+const context={assert,console,Calendar:{Events:{get(){throw Error('404 not found');},insert(){throw Error('Unexpected event creation');},list(){return {items:[]};}}},Utilities:{DigestAlgorithm:{SHA_256:'sha256'},getUuid:()=>crypto.randomUUID(),computeDigest:(a,s)=>[...crypto.createHash(a).update(s).digest()],formatDate:(d,tz,pattern)=>{const s=new Date(+d+7*3600000).toISOString();return pattern==='yyyy-MM-dd'?s.slice(0,10):s.slice(0,16);}},CacheService:{getScriptCache:()=>({get:k=>cache.get(k),put:(k,v)=>cache.set(k,v)})},PropertiesService:{getScriptProperties:()=>({getProperty:k=>props.get(k),setProperty:(k,v)=>props.set(k,v)})},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},SpreadsheetApp:{openById:()=>({getSheetByName:()=>initialized?sheet:null,insertSheet:()=>{initialized=true;return sheet;}}),flush(){}}};
 vm.runInNewContext(code+`
 CONFIG.province=['Nguyễn A'];CONFIG.office=['Trần B'];CONFIG.specialists=['Lê C'];
-const data={province:['Nguyễn A'],office:[],specialists:[],start:'2026-12-01T08:00',end:'2026-12-01T09:00',title:'Họp',place:'Phòng họp',unit:'Văn phòng',contact:'Người đăng ký',docs:'',website:''};
+const data={province:['Nguyễn A'],office:[],specialists:[],start:'2026-12-01T08:00',end:'2026-12-01T09:00',title:'Họp',place:'Phòng họp',name:'Người đăng ký',mode:'fixed',timeNote:'',docs:'',website:''};
 assert.equal(webDate_(data.start).toISOString(),'2026-12-01T01:00:00.000Z');
 assert.throws(()=>webDate_('2026-02-30T08:00'));
 assert.throws(()=>webDate_('2026-12-01T08:00Z'));
@@ -17,7 +17,7 @@ assert.throws(()=>webRecord_({...data,title:'a'.repeat(5001)}));
 assert.throws(()=>webRecord_({...data,docs:'javascript:alert(1)'}));
 const boot=scheduleBootstrap(),key='web:'+boot.token;
 CacheService.getScriptCache().put(key,JSON.stringify({created:Date.now()-5000,count:0}));
-processRow_=function(s,r){const h=s.getRange(1,1,1,s.getLastColumn()).getValues()[0];s.getRange(r,h.indexOf(META[1])+1).setValues([['ĐÃ LÊN LỊCH']]);};
+const actualProcess=processRow_;processRow_=function(s,r){const h=s.getRange(1,1,1,s.getLastColumn()).getValues()[0];s.getRange(r,h.indexOf(META[1])+1).setValues([['ĐÃ LÊN LỊCH']]);};
 const first=scheduleSubmit(boot.token,'w'+'a'.repeat(32),data);
 const second=scheduleSubmit(boot.token,'w'+'a'.repeat(32),data);
 assert.equal(first.id,second.id);
@@ -25,5 +25,29 @@ assert.equal(first.status,'ĐÃ LÊN LỊCH');
 assert.equal(SpreadsheetApp.openById('test').getSheetByName('x').getLastRow(),2);
 assert.throws(()=>scheduleSubmit('x'.repeat(72),'w'+'b'.repeat(32),data));
 assert.equal(SpreadsheetApp.openById('test').getSheetByName('x').getLastRow(),2);
+processRow_=actualProcess;
+const pending=scheduleSubmit(boot.token,'w'+'c'.repeat(32),{...data,mode:'flexible',start:'',end:'',timeNote:'Tuần tới'});
+assert.equal(pending.status,'CHỜ XẾP NGÀY');
+const saved=SpreadsheetApp.openById('test').getSheetByName('x').getRange(1,1,3,18).getValues();
+assert.equal(saved[2][saved[0].indexOf('Người đăng ký')],'Người đăng ký');
+assert.equal(saved[2][saved[0].indexOf(Q.start)],'');
+assert.equal(saved[2][saved[0].indexOf(Q.end)],'');
+assert.throws(()=>webRecord_({...data,name:''}));
+assert.throws(()=>webRecord_({...data,mode:'other'}));
+const entries=[
+ {summary:'DO NOT EXPOSE',start:{dateTime:'2026-12-01T08:00:00+07:00'},end:{dateTime:'2026-12-01T09:00:00+07:00'},extendedProperties:{private:{people:JSON.stringify(['province:Nguyễn A'])}}},
+ {start:{dateTime:'2026-12-01T10:00:00+07:00'},end:{dateTime:'2026-12-01T11:00:00+07:00'},extendedProperties:{private:{people:JSON.stringify(['office:Trần B'])}}},
+ {start:{dateTime:'2026-12-01T12:00:00+07:00'},end:{dateTime:'2026-12-01T13:00:00+07:00'},transparency:'transparent'},
+ {start:{date:'2026-12-02'},end:{date:'2026-12-03'}}
+];
+let calls=0;Calendar.Events.list=(id,args)=>{calls++;return args.pageToken?{items:[entries[3]]}:{items:entries.slice(0,3),nextPageToken:'second'};};
+const available=scheduleAvailability('2026-12-01',{province:['Nguyễn A'],office:[],specialists:[]});
+assert.equal(calls,2);assert.equal(available.busy.length,2);
+assert.equal(available.busy[0].start,'2026-12-01T01:00:00.000Z');
+assert.equal(available.busy[1].end,'2026-12-02T17:00:00.000Z');
+assert.ok(!JSON.stringify(available).includes('DO NOT EXPOSE'));
+assert.throws(()=>scheduleAvailability('2026-12-01',{province:['Unknown'],office:[],specialists:[]}));
+Calendar.Events.list=()=>{throw Error('API unavailable');};
+assert.throws(()=>scheduleAvailability('2026-12-01',{province:[],office:[],specialists:[]}));
 `,context);
-console.log('13 web API checks passed: dates, validation, session, retry deduplication');
+console.log('26 web API checks passed: fixed/flexible dates, registrant, retry, calendar filtering, pagination, privacy and failures');
