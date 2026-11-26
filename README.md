@@ -31,16 +31,32 @@ Quản trị xem tab **Đăng ký từ website** trong Sheet và theo dõi cột
 
 | Trạng thái | Ý nghĩa |
 | --- | --- |
-| ĐÃ LÊN LỊCH | Đã tạo sự kiện Calendar |
+| ĐÃ LÊN LỊCH | Sự kiện đã tạo và vẫn tồn tại ở lần đối chiếu thành công gần nhất |
+| ĐÃ HỦY TRÊN CALENDAR | Calendar xác nhận đã hủy; giữ dòng để tra lịch sử |
+| KHÔNG TÌM THẤY TRÊN CALENDAR | Không truy cập được sự kiện theo ID; cần quản trị kiểm tra, không tự tạo lại |
 | CHỜ XẾP NGÀY | Đăng ký chưa có ngày cụ thể; đã lưu Sheet, chưa tạo sự kiện Calendar |
 | CHỜ XỬ LÝ TRÙNG LỊCH | Có người trùng lịch hoặc sự kiện nhập tay cần kiểm tra; chưa tạo sự kiện |
 | LỖI ĐỒNG BỘ | Đã lưu dữ liệu, cần xem Ghi chú xử lý và nhật ký Apps Script |
 | ĐANG XỬ LÝ | Đang chờ xử lý hoặc lần thực thi bị gián đoạn |
 | KIỂM THỬ ĐÃ DỌN | Dữ liệu kiểm thử, không phải lịch công tác |
 
-Không chỉnh sửa mã đăng ký/ID sự kiện. Sửa hoặc hủy lịch đã tạo được thực hiện trên Calendar bởi quản trị. Bản này đồng bộ một chiều khi tạo, không tự đồng bộ các chỉnh sửa trong Sheet.
+Không chỉnh sửa mã đăng ký/ID sự kiện. Sửa hoặc hủy lịch đã tạo được thực hiện trên Calendar bởi quản trị. Calendar → Sheet được kiểm tra mỗi 5 phút. Các cột đăng ký gốc giữ nguyên; các cột “trên Calendar” phản ánh bản hiện tại. Sửa các cột đăng ký gốc trong Sheet không tự sửa Calendar.
 
 Hàm quản trị `retryPending_()` được đặt riêng tư để khách truy cập web không gọi được; khi cần chạy thủ công trong trình biên tập, quản trị có thể tạo hàm tạm `function runAdminRetry(){ retryPending_(); }`, chạy rồi gỡ hàm tạm; **không đưa hàm tạm vào phiên bản web triển khai**. Với đăng ký **CHỜ XẾP NGÀY**, quản trị điền cả ngày giờ bắt đầu và kết thúc trong Sheet bằng giá trị ngày giờ thực, rồi chạy `retryPending_()` để kiểm tra trùng và tạo lịch. Chỉ nhập ngày trong Sheet chưa tự kích hoạt đồng bộ. Hàm xử lý lại xem các dòng trống trạng thái, LỖI ĐỒNG BỘ, hoặc CHỜ XẾP NGÀY đã được điền đủ hai mốc thời gian; dòng đang xử lý bị gián đoạn cần được quản trị kiểm tra và đặt trạng thái LỖI ĐỒNG BỘ trước khi thử lại. Dòng chờ trùng chỉ xử lý lại sau khi giải quyết xung đột. Không tự thay thế sự kiện cũ.
+
+## Đồng bộ ngược mỗi 5 phút
+
+- `syncCalendarToSheet_` là trigger thời gian của Apps Script, chạy bằng tài khoản quản trị, không phụ thuộc việc mở website.
+- Lần đầu đối chiếu các sự kiện; các lần sau lấy thay đổi bằng sync token, có phân trang và tự đối chiếu lại nếu token hết hạn. Lịch mới liên kết được kiểm tra bằng ID khi cần.
+- Trong tab đăng ký, xem **Trạng thái Calendar**: ĐÃ LÊN LỊCH / ĐÃ THAY ĐỔI TRÊN CALENDAR / ĐÃ HỦY TRÊN CALENDAR / KHÔNG TÌM THẤY TRÊN CALENDAR. Trạng thái thay đổi được giữ để dễ nhận ra dòng đã chỉnh sửa.
+- Các cột Nội dung, Bắt đầu, Kết thúc, Địa điểm, Thành phần **trên Calendar** là bản mới nhất; các cột đăng ký gốc không bị ghi đè.
+- Có các mốc Calendar cập nhật lúc, Phát hiện thay đổi lúc, Phát hiện xóa lúc, Lần kiểm tra Calendar và Link Calendar. “Phát hiện xóa” là thời điểm hệ thống quan sát được, không phải thời điểm chính xác người dùng bấm xóa.
+- Tab **Nhật ký đồng bộ lịch** giữ trước/sau của các thay đổi kể từ khi bật đồng bộ; tab **Theo dõi đồng bộ** cho biết lần chạy, lần thành công, số dòng theo dõi và lỗi.
+- Lịch bị hủy giữ nội dung đã biết; khi khôi phục đúng sự kiện đó, trạng thái trở lại đã lên lịch. Nếu lỗi API/quota/quyền truy cập, giữ trạng thái xác minh trước đó và ghi lỗi, không báo nhầm đã xóa.
+- Chỉ theo dõi các dòng có Calendar Event ID. Dòng chờ xếp ngày/chờ trùng chưa tạo sự kiện và dòng kiểm thử đã dọn được bỏ qua. Lịch tạo riêng trên Calendar không tự trở thành dòng đăng ký mới.
+- Google có thể chạy trigger lệch thời điểm. Hạn mức Gmail cá nhân: tổng thời gian trigger 90 phút/ngày; vượt hạn mức có thể tạm ngừng. Thiết lập hiện tại không bật thanh toán.
+
+Cài đặt: thêm `ReverseSync.gs`, giữ CONFIG và SHEET_ID hiện có; chạy `installReverseSync_()` qua hàm quản trị tạm trong trình biên tập rồi gỡ hàm tạm trước khi triển khai web. Chỉ duy trì một trigger `syncCalendarToSheet_`, chu kỳ 5 phút. Trigger chạy mã HEAD, không cần xuất bản lại web khi chỉ thay tệp đồng bộ. Không cung cấp hàm quản trị công khai qua `google.script.run`.
 
 ## Quy tắc xếp lịch
 
@@ -61,10 +77,11 @@ Hàm quản trị `retryPending_()` được đặt riêng tư để khách truy
 - `docs/mobile-preview.html`: trang kiểm tra bố cục ở các chiều rộng điện thoại/máy tính bảng.
 - `docs/config.js`: URL công khai của Apps Script web app; không có khóa bí mật.
 - `apps-script/Code.gs`: xử lý dữ liệu, kiểm tra trùng và Calendar; CONFIG trong repo là mẫu.
+- `apps-script/ReverseSync.gs`: đồng bộ ngược, nhật ký và theo dõi lỗi mỗi 5 phút.
 - `apps-script/Web.gs`: doGet, API gửi đăng ký và lấy khoảng giờ bận công khai.
 - `apps-script/WebRegistration.html`: giao diện nhập liệu riêng.
 - `apps-script/appsscript.json`: múi giờ Việt Nam, Calendar API v3.
-- `tests/validation.cjs`, `tests/web.cjs`: kiểm tra bằng Node.js.
+- `tests/validation.cjs`, `tests/web.cjs`, `tests/reverse-sync.cjs`: kiểm tra bằng Node.js.
 
 Hệ thống hiện có đã cấu hình CONFIG thật, Script Property `SHEET_ID`, Calendar API và quyền quản trị. **Không chạy lại setup trên hệ thống đang vận hành.** Khi cập nhật, giữ nguyên cấu hình và Script Properties. Dán Web.gs, WebRegistration.html vào đúng tên tệp trong Apps Script. Các hàm quản trị phải kết thúc bằng dấu gạch dưới để không thể gọi từ giao diện công khai.
 
