@@ -19,7 +19,9 @@ function setup() {
   if(p.getProperty('FORM_ID')) throw Error('Đã tạo biểu mẫu. Không chạy setup lần nữa.');
   if (['province','office','specialists'].some(k=>CONFIG[k].some(n=>n.includes(',')))) throw Error('Tên nhân sự không được chứa dấu phẩy.');
   Calendar.Calendars.get(CONFIG.calendarId); // Xác minh kết nối trước khi tạo.
-  const ss=SpreadsheetApp.getActive();
+  const ss=SpreadsheetApp.getActive() || SpreadsheetApp.create('Đăng ký lịch làm việc lãnh đạo');
+  p.setProperty('SHEET_ID',ss.getId());
+  console.log('Google Sheet: '+ss.getUrl());
   ss.setSpreadsheetTimeZone('Asia/Ho_Chi_Minh');
   const form=FormApp.create('Đăng ký lịch làm việc lãnh đạo');
   p.setProperty('FORM_ID',form.getId());
@@ -43,6 +45,21 @@ function setup() {
 function handleSubmit(e) {
   if(!e || !e.range) throw Error('Hàm này chỉ chạy bằng trigger From spreadsheet → On form submit.');
   processRow_(e.range.getSheet(),e.range.getRow());
+}
+function retryPending() {
+  const ss=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'));
+  ss.getSheets().forEach(s=>{
+    if(s.getLastRow()<2)return;
+    const h=s.getRange(1,1,1,s.getLastColumn()).getValues()[0];
+    if(!Object.values(Q).every(k=>h.includes(k)))return;
+    const status=h.indexOf(META[1]);
+    const values=s.getDataRange().getValues();
+    for(let i=1;i<values.length;i++){
+      if(status<0||!values[i][status]||values[i][status]==='LỖI ĐỒNG BỘ'){
+        try{processRow_(s,i+1);}catch(e){console.error(String(e));}
+      }
+    }
+  });
 }
 function retrySelected() {
   const s=SpreadsheetApp.getActiveSheet(),r=s.getActiveRange().getRow();
