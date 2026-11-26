@@ -1,7 +1,7 @@
-/* Public registration API. Availability exposes only busy time ranges, never event content.
+/* Public registration API. Availability exposes meeting titles and provincial leaders.
    Deploy as owner, access Anyone. Administrative functions must end with underscore. */
 function doGet() {
-  return HtmlService.createHtmlOutputFromFile('WebRegistration').setTitle('Đăng ký lịch làm việc')
+  return HtmlService.createHtmlOutputFromFile('WebRegistration').setTitle('Cổng đăng ký lịch công tác tuần UBND tỉnh Quảng Trị')
     .addMetaTag('viewport','width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -34,7 +34,10 @@ function webRecord_(data) {
   record['Loại thời gian']=data.mode==='flexible'?'Chưa cố định ngày':'Ngày giờ cụ thể';
   record['Gợi ý thời gian']=data.timeNote.trim();
   record[Q.start]=data.mode==='flexible'?'':webDate_(data.start);
-  record[Q.end]=data.mode==='flexible'?'':webDate_(data.end);
+  if(data.mode==='fixed'&&typeof data.end!=='string')throw Error('Giờ kết thúc không hợp lệ.');
+  const estimated=data.mode==='fixed'&&data.end==='';
+  record[Q.end]=data.mode==='flexible'?'':estimated?new Date(+record[Q.start]+60*60000):webDate_(data.end);
+  record['Cách xác định giờ kết thúc']=estimated?'Chưa xác định — tạm giữ 60 phút':data.mode==='flexible'?'':'Đã xác định';
   validate_(record);return record;
 }
 function scheduleSubmit(token,requestId,data) {
@@ -48,7 +51,7 @@ function scheduleSubmit(token,requestId,data) {
     if(!session||Date.now()-session.created<1500)throw Error('Phiên đã hết hạn hoặc chưa sẵn sàng. Hãy tải lại trang.');
     const ss=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'));
     sheet=ss.getSheetByName('Đăng ký từ website');
-    const required=['Dấu thời gian',...Object.values(Q),...META,'Người đăng ký','Loại thời gian','Gợi ý thời gian'];
+    const required=['Dấu thời gian',...Object.values(Q),...META,'Người đăng ký','Loại thời gian','Gợi ý thời gian','Cách xác định giờ kết thúc'];
     if(!sheet){sheet=ss.insertSheet('Đăng ký từ website');sheet.setFrozenRows(1);}
     let headers=sheet.getLastRow()?sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0]:[];
     required.forEach(h=>{if(!headers.includes(h))headers.push(h);});
@@ -96,7 +99,14 @@ function scheduleAvailability(day,selection) {
       const a=e.start.dateTime?new Date(e.start.dateTime):webDate_(e.start.date+'T00:00');
       const b=e.end.dateTime?new Date(e.end.dateTime):webDate_(e.end.date+'T00:00');
       if(!Number.isFinite(+a)||!Number.isFinite(+b)||b<=a)throw Error('Chưa đọc đủ dữ liệu lịch. Vui lòng thử lại.');
-      busy.push({start:a.toISOString(),end:b.toISOString()});
+      const props=e.extendedProperties&&e.extendedProperties.private||{};
+      const province=Array.isArray(others)?CONFIG.province.filter(n=>others.includes('province:'+n)):[];
+      // Legacy/manual events: only read the explicit provincial-leaders line.
+      if(!others){
+        const line=String(e.description||'').split(/\r?\n/).find(s=>s.startsWith(Q.province+':'));
+        if(line){const names=parsePeople_(line.slice(Q.province.length+1));CONFIG.province.forEach(n=>{if(names.includes(n))province.push(n);});}
+      }
+      busy.push({start:a.toISOString(),end:b.toISOString(),title:String(e.summary||'(Chưa có nội dung)').slice(0,5000),province,participantsKnown:Array.isArray(others)||province.length>0,endEstimated:props.endEstimated==='true',allDay:!e.start.dateTime});
     }
     pageToken=result.nextPageToken;pages++;
     if(pageToken&&pages>=4)throw Error('Lịch có quá nhiều sự kiện. Vui lòng liên hệ bộ phận tổng hợp.');
