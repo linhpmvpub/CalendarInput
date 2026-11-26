@@ -35,7 +35,7 @@ assert.equal(saved[2][saved[0].indexOf(Q.end)],'');
 assert.throws(()=>webRecord_({...data,name:''}));
 assert.throws(()=>webRecord_({...data,mode:'other'}));
 const entries=[
- {summary:'DO NOT EXPOSE',start:{dateTime:'2026-12-01T08:00:00+07:00'},end:{dateTime:'2026-12-01T09:00:00+07:00'},extendedProperties:{private:{people:JSON.stringify(['province:Nguyễn A'])}}},
+ {summary:'Họp giao ban',description:'Thông tin liên hệ không công khai',attendees:[{email:'private@example.test'}],start:{dateTime:'2026-12-01T08:00:00+07:00'},end:{dateTime:'2026-12-01T09:00:00+07:00'},extendedProperties:{private:{people:JSON.stringify(['province:Nguyễn A'])}}},
  {start:{dateTime:'2026-12-01T10:00:00+07:00'},end:{dateTime:'2026-12-01T11:00:00+07:00'},extendedProperties:{private:{people:JSON.stringify(['office:Trần B'])}}},
  {start:{dateTime:'2026-12-01T12:00:00+07:00'},end:{dateTime:'2026-12-01T13:00:00+07:00'},transparency:'transparent'},
  {start:{date:'2026-12-02'},end:{date:'2026-12-03'}}
@@ -45,9 +45,23 @@ const available=scheduleAvailability('2026-12-01',{province:['Nguyễn A'],offic
 assert.equal(calls,2);assert.equal(available.busy.length,2);
 assert.equal(available.busy[0].start,'2026-12-01T01:00:00.000Z');
 assert.equal(available.busy[1].end,'2026-12-02T17:00:00.000Z');
-assert.ok(!JSON.stringify(available).includes('DO NOT EXPOSE'));
+assert.equal(available.busy[0].title,'Họp giao ban');
+assert.deepEqual(available.busy[0].province,['Nguyễn A']);
+assert.ok(!JSON.stringify(available).includes('Thông tin liên hệ không công khai'));
+assert.ok(!JSON.stringify(available).includes('private@example.test'));
+const noEnd=webRecord_({...data,end:''});
+assert.equal(noEnd[Q.end]-noEnd[Q.start],3600000);
+assert.equal(noEnd['Cách xác định giờ kết thúc'],'Chưa xác định — tạm giữ 60 phút');
+assert.throws(()=>webRecord_({...data,end:undefined}));
+const midnight=webRecord_({...data,start:'2026-12-01T23:30',end:''});
+assert.equal(midnight[Q.end].toISOString(),'2026-12-01T17:30:00.000Z');
+assert.equal(webRecord_({...data,mode:'flexible',end:''})[Q.end],'');
+Calendar.Events.list=()=>({items:[{...entries[0],extendedProperties:{private:{people:JSON.stringify(['province:Nguyễn A']),endEstimated:'true'}}},{...entries[1],description:'Lãnh đạo UBND tỉnh: Nguyễn A',extendedProperties:undefined}]});
+const details=scheduleAvailability('2026-12-01',{province:[],office:[],specialists:[]});
+assert.equal(details.busy[0].endEstimated,true);
+assert.deepEqual(details.busy[1].province,['Nguyễn A']);
 assert.throws(()=>scheduleAvailability('2026-12-01',{province:['Unknown'],office:[],specialists:[]}));
 Calendar.Events.list=()=>{throw Error('API unavailable');};
 assert.throws(()=>scheduleAvailability('2026-12-01',{province:[],office:[],specialists:[]}));
 `,context);
-console.log('26 web API checks passed: fixed/flexible dates, registrant, retry, calendar filtering, pagination, privacy and failures');
+console.log('Web API checks passed: optional end, estimated duration, meeting details, leader metadata, filtering, pagination, retries and privacy');
