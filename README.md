@@ -1,16 +1,16 @@
-# Đăng ký lịch làm việc lãnh đạo
+# Cổng đăng ký lịch công tác tuần UBND tỉnh Quảng Trị
 
 Website đang hoạt động: **https://linhpmvpub.github.io/CalendarInput/**
 
 Người dùng nhập và gửi ngay trên website, không cần Gmail hoặc đăng nhập và không chuyển sang Google Form. Form có ba nhóm chọn nhiều người, tìm tên không dấu, địa điểm, nội dung, tên người đăng ký và link tài liệu. Phần người đăng ký chỉ có họ tên; không yêu cầu đơn vị hoặc thông tin liên hệ. Có thể chọn ngày giờ cụ thể hoặc **Chưa cố định ngày**. Kết quả xử lý hiển thị ngay trên trang.
 
-Giao diện có bảng **Lịch & khung giờ trống**, cập nhật từ Calendar chung và lọc theo người đã chọn. Chọn ngày, thời lượng 30/60/90/120 phút rồi bấm **Chọn giờ** để điền thời gian vào form. Trên điện thoại chuyển giữa hai tab Đăng ký và Xem lịch & giờ trống. Khung gợi ý là 07:00–18:00; người dùng vẫn có thể nhập giờ khác vào form.
+Giao diện có bảng **Lịch & khung giờ trống**, cập nhật từ Calendar chung và lọc theo người đã chọn. Bảng lịch có danh sách từng cuộc họp trong ngày và lãnh đạo UBND tỉnh tham dự, kể cả các cuộc họp trùng giờ. Lịch nhập tay chưa có thành phần rõ ràng được ghi “Chưa cập nhật thành phần lãnh đạo”. Chọn ngày, thời lượng 30/60/90/120 phút rồi bấm **Chọn giờ** để điền thời gian vào form. Trên điện thoại chuyển giữa hai tab Đăng ký và Xem lịch & giờ trống. Khung gợi ý là 07:00–18:00; người dùng vẫn có thể nhập giờ khác vào form.
 
 ## Luồng đang vận hành
 
 GitHub Pages nhúng giao diện HTML riêng do Apps Script phục vụ. Giao diện gọi `google.script.run` để lưu vào tab **Đăng ký từ website** trong Google Sheet, sau đó kiểm tra và tạo sự kiện trên Google Calendar. Apps Script chạy bằng quyền quản trị; người gửi không cần được chia sẻ Sheet hoặc Calendar. Bản này không thu email đã xác minh.
 
-Người có đường dẫn được xem danh sách nhân sự trong form và gửi đăng ký theo lựa chọn công khai của đơn vị. API chỉ cung cấp khoảng giờ bận để tính giờ trống, không trả tiêu đề/nội dung sự kiện hoặc các đăng ký khác, và không cho sửa/xóa sự kiện. Quyền chia sẻ của Sheet và Calendar không bị thay đổi. Mã nguồn GitHub chỉ chứa cấu hình mẫu; tên thật được lưu trong Apps Script riêng và cấp cho giao diện lúc tải.
+Người có đường dẫn được xem danh sách nhân sự trong form và gửi đăng ký theo lựa chọn công khai của đơn vị. Theo yêu cầu công khai của đơn vị, API tra cứu cung cấp nội dung cuộc họp (summary), giờ và thành phần lãnh đạo UBND tỉnh. Không trả mô tả đầy đủ, tài liệu, email khách mời hoặc người đăng ký; không cho sửa/xóa sự kiện. Quyền chia sẻ của Sheet và Calendar không bị thay đổi. Mã nguồn GitHub chỉ chứa cấu hình mẫu; tên thật được lưu trong Apps Script riêng và cấp cho giao diện lúc tải.
 
 Google Form cũ và trigger cũ vẫn được giữ để bảo toàn hệ thống đã thiết lập; website hiện không dùng chúng. Các phản hồi cũ nằm ở tab **Câu trả lời biểu mẫu 1**.
 
@@ -20,7 +20,7 @@ Google Form cũ và trigger cũ vẫn được giữ để bảo toàn hệ th�
 - Gửi cùng người trong khung giờ giao nhau: Sheet lưu **CHỜ XỬ LÝ TRÙNG LỊCH**, không tạo sự kiện thứ hai.
 - Xử lý lại dòng thành công: vẫn chỉ có một sự kiện.
 - Sự kiện thử đã được hủy. Các dòng thử giữ lại với trạng thái **KIỂM THỬ ĐÃ DỌN** để đối chiếu.
-- 12 kiểm tra dữ liệu/Calendar metadata và 26 kiểm tra API web đạt yêu cầu, gồm ngày sai, tên giả, thời gian đảo, link không hợp lệ, phiên không hợp lệ, gửi lại không tạo thêm dòng, lịch chưa cố định ngày, lọc giờ bận, phân trang và xử lý lỗi Calendar.
+- Các kiểm tra dữ liệu/Calendar metadata và API web đạt yêu cầu, gồm ngày sai, tên giả, thời gian đảo, link không hợp lệ, phiên không hợp lệ, gửi lại không tạo thêm dòng, lịch chưa cố định ngày, lọc giờ bận, phân trang, giờ kết thúc không bắt buộc, giữ 60 phút kể cả qua nửa đêm, hiển thị đúng nội dung/thành phần lãnh đạo và xử lý lỗi Calendar.
 - Kiểm thử trực tiếp bản mới: tên người đăng ký được lưu; đăng ký chưa cố định ngày không có ngày/ID sự kiện; khoảng bận khớp sự kiện kiểm thử; chọn khung trống điền đúng giờ.
 - Đã kiểm tra giao diện nhúng thực tế ở chiều rộng 390 px và 360 px, không tràn ngang; kiểm tra bảng lịch và các ô ngày giờ.
 - Đã kiểm tra triển khai ở quyền **Bất kỳ ai**, thực thi bằng tài khoản quản trị. Chưa thử trên điện thoại thực tế hoặc phiên trình duyệt riêng đã đăng xuất.
@@ -46,7 +46,7 @@ Hàm quản trị `retryPending_()` được đặt riêng tư để khách truy
 
 - Ít nhất một người trong ba nhóm; tên phải nằm trong danh sách máy chủ.
 - Chưa cố định ngày: không yêu cầu ngày giờ, có ô gợi ý thời gian không bắt buộc; không chiếm khung giờ Calendar.
-- Khi có ngày cụ thể: kết thúc sau bắt đầu; thời gian theo Asia/Ho_Chi_Minh (UTC+7).
+- Khi có ngày cụ thể: nhập Ngày, Giờ bắt đầu và Giờ kết thúc (nếu có); thứ hiển thị tự động bằng tiếng Việt. Giờ kết thúc nhập phải sau giờ bắt đầu trong cùng ngày. Để trống giờ kết thúc: tạm giữ 60 phút trên Calendar và ghi rõ chưa xác định trong Sheet/Calendar/tra cứu. Quản trị có thể điều chỉnh trên Calendar khi đã chốt; thời gian theo Asia/Ho_Chi_Minh (UTC+7).
 - Nội dung tối đa 5.000 ký tự. Link tài liệu phải dùng HTTPS. Link không tự cấp quyền xem tài liệu.
 - Trùng người trong Calendar chung: giữ đăng ký chờ xử lý.
 - Lịch nhập thủ công chưa có mã thành phần: tạm giữ mọi đăng ký giao nhau để quản trị kiểm tra. Sự kiện free/transparent không chặn.
