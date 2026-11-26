@@ -100,3 +100,15 @@ Không cần máy chủ trả phí, không bật dịch vụ thanh toán. Apps S
 - https://developers.google.com/apps-script/reference/html/x-frame-options-mode
 - https://developers.google.com/apps-script/guides/services/quotas
 - https://developers.google.com/workspace/calendar/api/guides/quotas
+
+## Chỉnh sửa đăng ký trên website
+
+- Sau khi gửi, người đăng ký nhận **Mã chỉnh sửa** riêng (khác Mã đăng ký) và nút **Sửa đăng ký này**. Sao chép mã để dùng lại ở mục **Chỉnh sửa lịch đã đăng ký → Mở lịch**. Không cần đăng nhập; ai có mã này có thể chỉnh sửa, vì vậy phải giữ riêng.
+- Có thể đổi nội dung, ba nhóm thành phần, địa điểm, ngày/giờ, link tài liệu và tên người đăng ký. Lịch chờ ngày có thể chuyển thành ngày giờ cụ thể. Lịch đã lên Calendar phải giữ ngày giờ cụ thể; hủy lịch do quản trị thực hiện.
+- Khi mở, hệ thống lấy nội dung mới nhất từ Calendar. Sửa ngày/giờ hoặc thành phần sẽ kiểm tra trùng, bỏ qua chính sự kiện đang sửa. Lưu cập nhật đúng Event ID, không tạo thêm sự kiện. ETag/If-Match ngăn ghi đè thay đổi đồng thời trên Calendar.
+- Sheet cập nhật các cột đăng ký hiện tại, giữ bản đăng ký trước lần sửa đầu trong **Đăng ký ban đầu (JSON)**, ghi lịch sử trước/sau ở tab **Nhật ký chỉnh sửa**. Các cột đối chiếu Calendar được cập nhật ngay; timer đồng bộ ngược 5 phút tiếp tục hoạt động.
+- Mã nằm trong cột **Mã chỉnh sửa (giữ riêng)** của Sheet riêng tư. Quản trị cấp mã của đúng dòng cho người đăng ký cũ hoặc người mất mã. Không công khai Sheet/cột này. Quản trị có thể thu hồi mã bằng cách xóa nội dung ô rồi chạy `enableRegistrationEditing_()` để cấp mã mới. Các hàm quản trị kết thúc `_` nên không gọi được từ `google.script.run`.
+- Khi triển khai, thêm `Edit.gs`, cập nhật `Web.gs` và `WebRegistration.html`, chạy `enableRegistrationEditing_()` từ Apps Script (có thể dùng hàm bọc quản trị tạm rồi xóa trước triển khai), sau đó tạo phiên bản mới cho deployment hiện tại. Không cần thêm API hay quyền truy cập.
+- Dữ liệu giao dịch được lưu trước khi cập nhật Calendar. Nếu Calendar đã nhận thay đổi nhưng Sheet/kết nối gặp lỗi, gửi lại cùng thao tác hoặc mở lại bằng mã sẽ hoàn tất ghi Sheet và nhật ký mà không nhân đôi sự kiện.
+- Lịch đã hủy/mất, lịch lặp, cả ngày hoặc kéo dài qua nhiều ngày được yêu cầu xử lý bởi quản trị; không tự khôi phục hay chuyển kiểu lịch.
+- Kiểm thử: `node tests/edit.cjs`, `node tests/web.cjs`, `node tests/validation.cjs`, `node tests/reverse-sync.cjs`.
