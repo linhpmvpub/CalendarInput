@@ -134,6 +134,8 @@ function processRow_(sheet,row){
         if(existing.status==='cancelled'){put(META[1],'ĐÃ HỦY TRÊN CALENDAR');return;}
         put(META[1],'ĐÃ LÊN LỊCH');put(META[2],existing.id);put(META[3],'');return;
       }
+      // A previously linked event must never be recreated by a retry after removal.
+      if(record[META[2]]){put(META[1],'KHÔNG TÌM THẤY TRÊN CALENDAR');put(META[3],'Sự kiện đã liên kết không còn truy cập được. Không tự tạo lại; kiểm tra Calendar.');return;}
       const v=validate_(record);
       if(v.flexible){put(META[1],'CHỜ XẾP NGÀY');put(META[3],'Chưa cố định ngày. Chưa tạo sự kiện Calendar.');return;}
       let pageToken,conflict=false;
