@@ -100,6 +100,7 @@ function scheduleSubmit(token,requestId,data) {
   } finally {lock.releaseLock();}
   try {processRow_(sheet,row);}catch(e){console.error('Web submission processing failed: '+String(e));}
   const h=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0],v=sheet.getRange(row,1,1,h.length).getValues()[0];
+  if(typeof adminInvalidate_==='function')adminInvalidate_();
   return {id:String(v[h.indexOf(META[0])]),status:String(v[h.indexOf(META[1])]),message:String(v[h.indexOf(META[3])]||''),sheetRow:row,editCode};
 }
 
