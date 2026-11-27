@@ -168,4 +168,5 @@ function schedulingFinish_(ref,tx,event){
   const exists=log.getLastRow()>1?log.getRange(2,1,log.getLastRow()-1,1).createTextFinder(tx.id).matchEntireCell(true).findNext():null;
   if(!exists)log.getRange(log.getLastRow()+1,1,1,headers.length).setValues([[tx.id,new Date(tx.at),tx.registration,ref.sheet.getName(),tx.action,safe_(tx.reason),tx.oldId,wasHeld?'':event.id,JSON.stringify(tx.before),JSON.stringify(tx.record)]]);
   SpreadsheetApp.flush();put(PLAN.command,'');put(PLAN.pending,'');SpreadsheetApp.flush();
+  if(typeof adminInvalidate_==='function')adminInvalidate_();
 }
