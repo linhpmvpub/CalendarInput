@@ -64,7 +64,7 @@ function editResource_(ref,record,event,operation){
   const kept=String(event?.description||'').split(/\r?\n/).filter(line=>!Object.keys(replacement).some(k=>line.startsWith(k+':'))&&!line.startsWith('Giờ kết thúc mặc định hết buổi:'));
   let description=[...Object.entries(replacement).filter(([k,x])=>x||k!=='Tài liệu').map(([k,x])=>k+': '+x),...kept.filter(Boolean)].join('\n');
   if(props.endEstimated==='true')description+='\nGiờ kết thúc mặc định hết buổi: '+Utilities.formatDate(v.end,'Asia/Ho_Chi_Minh','HH:mm')+'.';
-  return {summary:record[Q.title],location:record[Q.place],description,start:{dateTime:v.start.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},end:{dateTime:v.end.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},extendedProperties:{private:props}};
+  return {...colorFields_(record),summary:record[Q.title],location:record[Q.place],description,start:{dateTime:v.start.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},end:{dateTime:v.end.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},extendedProperties:{private:props}};
 }
 function editConflict_(record,exclude){
   const v=validate_(record);if(v.flexible)return;let pageToken,pages=0;
