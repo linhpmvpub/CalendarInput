@@ -71,3 +71,35 @@ events.set('manual-unknown',{id:'manual-unknown',summary:'Manual unknown',start:
 const unknownStaff=context.scheduleSubmit(token,op(),{...sameStaff,province:[],start:'2027-12-11T08:00',end:'2027-12-11T09:00'});assert.equal(unknownStaff.status,'ĐÃ LÊN LỊCH');
 const unknownLeader=context.scheduleSubmit(token,op(),{...sameStaff,start:'2027-12-11T08:00',end:'2027-12-11T09:00'});assert.equal(unknownLeader.status,'CHỜ XỬ LÝ TRÙNG LỊCH');
 console.log('Province-only integration passed: shared staff allowed, same leader blocked, staff-only allowed, edits and Sheet promotion use the same rule, participant metadata retained.');
+
+// Explicit Sheet-only override: preserve other events, update mirrors/audit and never duplicate.
+const force=run('PLAN.force');
+const exception=context.scheduleSubmit(token,op(),{...sameStaff,title:'Ngoại lệ trùng Chủ tịch'}),forceRow=rowOf(exception.id);
+assert.equal(exception.status,'CHỜ XỬ LÝ TRÙNG LỊCH');
+const existingA=JSON.stringify(events.get(leaderA.id)),countBefore=insertCalls;
+action(forceRow,'ĐẨY LÊN CALENDAR');assert.equal(insertCalls,countBefore);assert.match(get(forceRow,'Kết quả xếp lịch'),/trùng lịch/);
+put(forceRow,'Lý do điều phối','Đã được lãnh đạo chấp thuận');put(forceRow,'Thao tác xếp lịch',force);
+context.sheetSchedulingOnEdit_({triggerUid:'private-trigger',source:ss,range:sheet.getRange(forceRow,cmdCol)});
+assert.equal(get(forceRow,'Trạng thái xử lý'),'ĐÃ LÊN LỊCH');assert.match(get(forceRow,'Kết quả xếp lịch'),/XẾP NGOẠI LỆ/);
+assert.equal(get(forceRow,'Calendar Event ID'),exception.id);assert.equal(get(forceRow,'Thao tác xếp lịch'),'');assert.equal(get(forceRow,'Giao dịch xếp lịch (JSON)'),'');
+assert.equal(events.get(exception.id).extendedProperties.private.schedulingConflictOverride,'true');assert.equal(JSON.stringify(events.get(leaderA.id)),existingA);
+assert.match(get(forceRow,'Ghi chú xử lý'),/Đã được lãnh đạo chấp thuận/);
+assert.ok(log.rows.some(r=>r[2]===exception.id&&r[4]===force&&r[5]==='Đã được lãnh đạo chấp thuận'));
+const once=insertCalls;action(forceRow,force);assert.equal(insertCalls,once);
+// Public payload flags cannot enable override.
+const publicAttempt=context.scheduleSubmit(token,op(),{...sameStaff,force:true,ignoreConflict:true,title:'Public override forbidden'});assert.equal(publicAttempt.status,'CHỜ XỬ LÝ TRÙNG LỊCH');assert.equal(insertCalls,once);
+// Missing fixed time remains invalid even for override.
+const missing=context.scheduleSubmit(token,op(),{...sameStaff,mode:'flexible',start:'',end:'',title:'Chưa có ngày'});action(rowOf(missing.id),force);assert.equal(insertCalls,once);assert.match(get(rowOf(missing.id),'Kết quả xếp lịch'),/Điền Bắt đầu/);
+// Calendar success followed by partial Sheet failure is recoverable by the normal maintenance poll.
+const recovery=context.scheduleSubmit(token,op(),{...sameStaff,title:'Ngoại lệ khôi phục'}),recoveryRow=rowOf(recovery.id);failWrite=true;action(recoveryRow,force);
+assert.ok(get(recoveryRow,'Giao dịch xếp lịch (JSON)'));assert.ok(events.has(recovery.id));const recoveryCount=insertCalls;
+context.schedulingMaintenance_(ss,Date.now()+10000);assert.equal(insertCalls,recoveryCount);assert.equal(get(recoveryRow,'Trạng thái xử lý'),'ĐÃ LÊN LỊCH');assert.equal(get(recoveryRow,'Giao dịch xếp lịch (JSON)'),'');
+assert.equal(log.rows.filter(r=>r[2]===recovery.id&&r[4]===force).length,1);
+// A normal transaction blocked between prepare and creation can explicitly switch to the override.
+const upgrade=context.scheduleSubmit(token,op(),{...sameStaff,title:'Ngoại lệ sau xung đột mới'}),upgradeRow=rowOf(upgrade.id),originalConflict=context.editConflict_;let conflictCalls=0;
+context.editConflict_=()=>{if(++conflictCalls===2)throw Error('Trùng lịch sau khi chuẩn bị');};action(upgradeRow,'ĐẨY LÊN CALENDAR');context.editConflict_=originalConflict;
+assert.ok(get(upgradeRow,'Giao dịch xếp lịch (JSON)'));assert.equal(events.has(upgrade.id),false);
+action(upgradeRow,force);assert.equal(events.get(upgrade.id).extendedProperties.private.schedulingConflictOverride,'true');assert.equal(get(upgradeRow,'Trạng thái xử lý'),'ĐÃ LÊN LỊCH');
+// Registered action handlers and helpers stay private.
+for(const match of fs.readFileSync('apps-script/Scheduling.gs','utf8').matchAll(/function\s+(\w+)\(/g))assert.ok(match[1].endsWith('_'));
+console.log('Exception scheduling passed: explicit private action, conflict bypass only, other events intact, status/audit, invalid dates, public flag rejection, duplicate prevention and recovery.');
