@@ -122,3 +122,15 @@ Kích hoạt qua **Cài đặt dự án → Thuộc tính của tập lệnh** (
 Với lịch nhập trực tiếp, dùng các dòng mô tả `Lãnh đạo UBND tỉnh: ...`, `Lãnh đạo Văn phòng UBND tỉnh: ...`, `Chuyên viên: ...`, các tên phân cách bằng dấu phẩy và khớp danh sách CONFIG. Dòng hiện tại (kể cả dòng rỗng) ưu tiên hơn metadata cũ. Không đoán tên từ tiêu đề/nội dung tự do; lịch không xác định được thành phần giữ nguyên màu. Lịch có thành phần hợp lệ được quản lý màu tự động, nên thay màu thủ công sẽ được đưa về quy tắc ở lượt kiểm tra kế tiếp. Màu không tham gia dấu thay đổi nội dung, tránh báo giả rằng cuộc họp đã sửa. Tab `Theo dõi đồng bộ` có số lịch đổi màu ở lượt gần nhất. Website hiển thị chú giải và nhãn chữ kèm màu; không phụ thuộc khả năng hiển thị màu riêng của Google Calendar ở chế độ xem/chia sẻ khác nhau.
 
 Kiểm tra: `node tests/colors.cjs` cùng các bộ kiểm tra đăng ký, chỉnh sửa và đồng bộ hiện có.
+
+### Điều phối lịch trực tiếp từ Sheet
+
+Các tab đăng ký có thêm cột **Thao tác xếp lịch**, **Lý do điều phối**, **Kết quả xếp lịch**, **Cập nhật xếp lịch lúc**. Chỉ người có quyền sửa Sheet sử dụng được các thao tác quản trị này; không có API quản trị công khai trên trang đăng ký.
+
+1. Ở dòng lịch cần nhường chỗ, ghi lý do rồi chọn **ĐƯA VỀ CHỜ**. Đợi Kết quả xếp lịch báo THÀNH CÔNG. Sự kiện được gỡ khỏi Calendar, trạng thái Sheet thành **CHỜ XẾP LỊCH**. Nội dung, giờ cũ và mã đăng ký được giữ; Event ID cũ và bản sao sự kiện lưu riêng để đối chiếu.
+2. Ở dòng lịch ưu tiên đang chờ, kiểm tra/sửa **Bắt đầu**, **Kết thúc**, thành phần; chọn **ĐẨY LÊN CALENDAR**. Chỉ tạo khi không trùng; thành công tự chuyển **ĐÃ LÊN LỊCH**, cập nhật Event ID và màu. Nếu còn trùng, lịch vẫn chờ và cột kết quả nêu lỗi.
+3. Khi xếp lại lịch từng nhường chỗ, sửa ngày giờ trên dòng đó rồi chọn **ĐẨY LÊN CALENDAR**. Hệ thống dùng Event ID mới, giữ nguyên mã đăng ký và mã chỉnh sửa. Không sửa tay Trạng thái xử lý, Calendar Event ID, các cột JSON hoặc xóa dòng đăng ký để điều phối.
+
+Lệnh chạy qua trigger sửa ô (thường vài giây); lượt kiểm tra 5 phút xử lý dự phòng khi trigger chậm hoặc kết nối lỗi. Trigger `sheetSchedulingOnEdit_` được cài một lần bởi lượt đồng bộ nền. Script/API ghi ô không kích hoạt onEdit, nên những yêu cầu nhập bằng API được lượt nền xử lý. Thao tác thành công tự xóa lựa chọn, để chọn lại lần sau. Nhật ký ở tab **Nhật ký xếp lịch**. Một giao dịch được lưu trước khi đổi Calendar, có kiểm tra phiên bản, phục hồi sau lỗi và không tạo trùng. Lịch bị quản trị đưa về chờ không thể tự đẩy lại bằng mã chỉnh sửa web. Lịch có khách mời, hội nghị trực tuyến, lặp lại hoặc cả ngày yêu cầu quản trị xử lý trực tiếp để tránh ảnh hưởng lời mời. Không tự chọn lịch nào nhường chỗ thay người quản trị.
+
+Kiểm tra luồng nhường chỗ/ưu tiên/xếp lại và lỗi giữa chừng: `node tests/scheduling.cjs`.
