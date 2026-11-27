@@ -147,7 +147,8 @@ function showReceipt(result,data){
   const status=result.status,updated=result.updated;
   const texts=updated?['Đã lưu thay đổi',status==='ĐÃ LÊN LỊCH'?'Google Sheet và Calendar đã được cập nhật.':'Thông tin đăng ký chờ xếp ngày đã được cập nhật.']:status==='ĐÃ LÊN LỊCH'?['Đăng ký thành công','Lịch đã được thêm vào Calendar.']:status==='CHỜ XẾP NGÀY'?['Đã nhận đăng ký','Đăng ký chưa cố định ngày đã được lưu để bộ phận tổng hợp sắp xếp.']:status==='CHỜ XỬ LÝ TRÙNG LỊCH'?['Đăng ký đang chờ xử lý','Thời gian đã chọn có lịch trùng. Đăng ký đã lưu để bộ phận tổng hợp kiểm tra.']:['Đã lưu đăng ký','Bộ phận tổng hợp cần kiểm tra trạng thái: '+status];
   if(status==='ĐÃ LÊN LỊCH'&&data.mode==='fixed'&&!data.end)texts[1]+=' Giờ kết thúc mặc định hết buổi: '+(data.start.slice(-5)<'11:30'?'11h30.':'17h30.');
-  $('receipt-title').textContent=texts[0];$('receipt-body').textContent=texts[1];$('receipt-id').textContent='Mã đăng ký: '+result.id;
+  if(status==='LỖI ĐỒNG BỘ'){texts[0]='Đã lưu vào Sheet · Chưa lên Calendar';texts[1]='Thông tin đăng ký đã có trong tab “Đăng ký từ website”. '+(result.message||'Bộ phận tổng hợp cần kiểm tra lỗi đồng bộ.')+' Không cần tạo đăng ký mới.';}
+  $('receipt-title').textContent=texts[0];$('receipt-body').textContent=texts[1];$('receipt-id').textContent='Mã đăng ký: '+result.id+(result.sheetRow?' · Dòng Sheet lúc tiếp nhận: '+result.sheetRow:'');
   receiptCode=result.editCode||'';$('receipt-code').value=receiptCode;$('copy-status').textContent='';
   $('receipt').scrollIntoView({behavior:'smooth',block:'center'});loadAvailability();
 }
