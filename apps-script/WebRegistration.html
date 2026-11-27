@@ -91,7 +91,7 @@ h1,h2,h3,.hint,.cal-filter,.cal-foot,.flex-note,.weekday,.success-card p{overflo
 <div class="admin-top"><div><h2 id="admin-title">Quản trị lịch đăng ký</h2><p class="hint">Tìm và chỉnh sửa các đăng ký trong hệ thống, không cần mã riêng từng lịch.</p></div><button type="button" id="admin-logout" class="secondary" hidden>Đăng xuất</button></div>
 <form id="admin-login" class="card card-pad admin-login" style="margin-top:18px"><label class="field">Mã quản trị<input id="admin-password" type="password" required maxlength="200" autocomplete="off" placeholder="Nhập mã quản trị"></label><p class="hint">Phiên quản trị có hiệu lực 30 phút. Đăng xuất khi dùng xong.</p><button class="primary" id="admin-login-button" style="margin-top:16px">Mở danh sách lịch</button></form>
 <p id="admin-status" class="admin-status" role="status" aria-live="polite"></p>
-<div id="admin-content" hidden><form id="admin-filter" class="admin-tools"><label class="field">Tìm lịch<input id="admin-query" type="search" maxlength="200" placeholder="Nội dung, lãnh đạo hoặc mã đăng ký…"></label><label class="field">Phạm vi<select id="admin-scope"><option value="current">Hiện tại &amp; sắp tới</option><option value="waiting">Đang chờ xếp lịch</option><option value="all">Tất cả đăng ký</option></select></label><button class="secondary" id="admin-search">Tìm / Làm mới</button></form><p class="hint" style="margin-bottom:12px">Danh sách lấy từ Sheet. Khi mở một lịch, hệ thống tải nội dung mới nhất từ Calendar. Sửa lịch đang chờ sẽ giữ nguyên trạng thái chờ.</p><div id="admin-list" class="admin-list"></div><button type="button" id="admin-more" class="secondary admin-more" hidden>Xem thêm</button></div></section>
+<div id="admin-content" hidden><form id="admin-filter" class="admin-tools"><label class="field">Tìm lịch<input id="admin-query" type="search" maxlength="200" placeholder="Nội dung, lãnh đạo hoặc mã đăng ký…"></label><label class="field">Phạm vi<select id="admin-scope"><option value="current">Hiện tại &amp; sắp tới</option><option value="waiting">Đang chờ xếp lịch</option><option value="all">Tất cả đăng ký</option></select></label><button class="secondary" id="admin-search">Làm mới dữ liệu</button></form><p class="hint" style="margin-bottom:12px">Gõ để tìm ngay trong danh sách đã tải. Bấm Làm mới dữ liệu để lấy thay đổi mới từ Sheet. Khi mở lịch, hệ thống luôn kiểm tra thông tin mới nhất trên Calendar. Sửa lịch đang chờ sẽ giữ nguyên trạng thái chờ.</p><div id="admin-list" class="admin-list"></div><button type="button" id="admin-more" class="secondary admin-more" hidden>Xem thêm</button></div></section>
 <section id="overview" class="overview" aria-labelledby="overview-title" hidden>
 <div class="card card-pad"><div class="overview-head"><div><h2 id="overview-title">Lịch công tác tuần</h2><p class="hint">Xem nội dung cuộc họp, lãnh đạo tham dự và khung giờ còn trống.</p></div><button type="button" class="secondary" id="overview-refresh">Làm mới</button></div>
 <div class="overview-controls"><label class="field">Chọn ngày trong tuần<input type="date" id="overview-date"></label><label class="field">Lọc Lãnh đạo UBND tỉnh<select id="overview-leader"><option value="">Tất cả lãnh đạo</option></select></label><div class="overview-nav"><button type="button" class="secondary" id="overview-prev" aria-label="Tuần trước">←</button><button type="button" class="secondary" id="overview-today">Tuần này</button><button type="button" class="secondary" id="overview-next" aria-label="Tuần sau">→</button></div></div>
@@ -110,7 +110,7 @@ h1,h2,h3,.hint,.cal-filter,.cal-foot,.flex-note,.weekday,.success-card p{overflo
 <script>
 const $=id=>document.getElementById(id),form=$('registration'),groupKeys=['province','office','specialistLead','specialistSupport'],labels={province:'Lãnh đạo UBND tỉnh',office:'Lãnh đạo Văn phòng UBND tỉnh',specialistLead:'Chuyên viên chủ trì',specialistSupport:'Chuyên viên phối hợp'};
 let editing=null,receiptCode='',editLoading=false;
-let adminTicket='',adminExpires=0,adminTimer,adminSerial=0,adminNext=null,adminItems=[];
+let adminTicket='',adminExpires=0,adminTimer,adminSerial=0,adminNext=null,adminItems=[],adminLoadedAt=0,adminVisible=50,adminListLoading=false;
 let token='',requestId='',sending=false,today='',weekStart='',activeDay='',availability=null,availabilitySerial=0,refreshTimer;
 const normalize=t=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/đ/g,'d');
 const dayDate=day=>new Date(day+'T00:00:00+07:00');
@@ -181,7 +181,7 @@ function overviewSessions(events,day){
 }
 /* End weekly overview helpers */
 let overviewWeek='',overviewData=null,overviewSerial=0,overviewLoading=false,overviewError='';
-function showPortal(view){const board=view==='overview';$('overview').hidden=!board;$('admin-panel').hidden=view!=='admin';$('registration-panel').hidden=view!=='register';['register','overview','admin'].forEach(k=>$('portal-'+k).setAttribute('aria-pressed',String(k===view)));if(board&&!overviewData&&!overviewLoading)loadOverview();}
+function showPortal(view){const board=view==='overview';$('overview').hidden=!board;$('admin-panel').hidden=view!=='admin';$('registration-panel').hidden=view!=='register';['register','overview','admin'].forEach(k=>$('portal-'+k).setAttribute('aria-pressed',String(k===view)));if(board&&!overviewData&&!overviewLoading)loadOverview();if(view==='admin'&&adminTicket&&(!adminLoadedAt||Date.now()-adminLoadedAt>120000)&&!adminListLoading)loadAdminList();}
 function setOverviewWeek(day){if(!day)return;overviewWeek=overviewMonday(day);$('overview-date').value=day;loadOverview();}
 function loadOverview(){
   if(!overviewWeek)return;const serial=++overviewSerial;overviewLoading=true;overviewError='';overviewData=null;$('overview-refresh').disabled=true;renderOverview();
@@ -224,7 +224,10 @@ setInterval(()=>{if(!$('overview').hidden&&!document.hidden&&!overviewLoading)lo
 
 function setBusy(value){sending=value;$('submit').disabled=value;$('edit-open').disabled=value;$('edit-cancel').disabled=value;$('again').disabled=value;$('admin-logout').disabled=value;$('admin-back').disabled=value;}
 function showReceipt(result,data){
-  overviewData=null;setBusy(false);form.hidden=true;$('receipt').hidden=false;$('edit-banner').hidden=true;
+  overviewSerial++;overviewLoading=false;overviewData=null;
+  if(result.admin){adminSerial++;adminListLoading=false;$('admin-search').disabled=false;}
+  if(result.admin&&result.item){const i=adminItems.findIndex(item=>item.id===result.item.id);if(i>=0)adminItems[i]=result.item;else adminItems.push(result.item);renderAdminList();}
+  setBusy(false);form.hidden=true;$('receipt').hidden=false;$('edit-banner').hidden=true;
   const status=result.status,updated=result.updated;
   const texts=updated?['Đã lưu thay đổi',status==='ĐÃ LÊN LỊCH'?'Google Sheet và Calendar đã được cập nhật.':'Thông tin đăng ký đã được cập nhật và vẫn ở danh sách chờ.']:status==='ĐÃ LÊN LỊCH'?['Đăng ký thành công','Lịch đã được thêm vào Calendar.']:status==='CHỜ XẾP NGÀY'?['Đã nhận đăng ký','Đăng ký chưa cố định ngày đã được lưu để bộ phận tổng hợp sắp xếp.']:status==='CHỜ XỬ LÝ TRÙNG LỊCH'?['Đăng ký đang chờ xử lý','Thời gian đã chọn trùng lịch Lãnh đạo UBND tỉnh hoặc có lịch chưa rõ thành phần lãnh đạo tỉnh. Đăng ký đã lưu để bộ phận tổng hợp kiểm tra.']:['Đã lưu đăng ký','Bộ phận tổng hợp cần kiểm tra trạng thái: '+status];
   if(status==='ĐÃ LÊN LỊCH'&&data.mode==='fixed'&&!data.end)texts[1]+=' Giờ kết thúc mặc định hết buổi: '+(data.start.slice(-5)<'11:30'?'11h30.':'17h30.');
@@ -250,41 +253,47 @@ function resetRegistration(){
 }
 function openRegistration(code,adminId){
   if(sending||editLoading)return;code=code.replace(/\s/g,'');if(!adminId&&!code){$('edit-status').textContent='Vui lòng nhập mã chỉnh sửa.';return;}
-  editLoading=true;$('edit-open').disabled=true;$('submit').disabled=true;$('edit-cancel').disabled=true;$('edit-status').textContent='Đang tải thông tin mới nhất…';
+  editLoading=true;if(adminId){renderAdminList();$('admin-status').textContent='Đang mở bản mới nhất của lịch đã chọn…';}$('edit-open').disabled=true;$('submit').disabled=true;$('edit-cancel').disabled=true;$('edit-status').textContent='Đang tải thông tin mới nhất…';
   const loader=google.script.run.withSuccessHandler(result=>{
     if(adminId&&!adminTicket){editLoading=false;setBusy(false);return;}
-    editLoading=false;$('edit-open').disabled=false;$('submit').disabled=false;$('edit-cancel').disabled=false;
+    editLoading=false;if(adminId)renderAdminList();$('edit-open').disabled=false;$('submit').disabled=false;$('edit-cancel').disabled=false;
     const d=result.data;form.reset();form.querySelectorAll('.option').forEach(l=>l.hidden=false);form.querySelectorAll('input[data-group]').forEach(c=>c.checked=(d[c.dataset.group]||[]).includes(c.value));
     ['title','place','docs','name','timeNote'].forEach(k=>form.elements[k].value=d[k]||'');form.elements.mode.value=d.mode;
     form.querySelectorAll('input[name=mode]').forEach(x=>x.disabled=result.scheduled&&x.value==='flexible');
     $('date').value=d.start.slice(0,10);$('start').value=d.start.slice(11);$('end').value=d.end.slice(11);setMode();
     editing={code,id:result.id,admin:!!adminId,revision:result.revision,operation:newId()};$('edit-code').value=code;$('edit-status').textContent='Đã mở thông tin mới nhất. Chỉnh sửa trong form bên dưới.';$('edit-access').open=false;
     $('edit-summary').textContent=(adminId?'QUẢN TRỊ · ':'')+'Mã đăng ký: '+result.id+(adminId&&!result.scheduled?' · Lưu thay đổi sẽ giữ nguyên trạng thái chờ.':'');$('edit-scheduled-note').hidden=!result.scheduled;$('edit-banner').hidden=false;$('receipt').hidden=true;$('message').hidden=true;form.hidden=false;$('submit').textContent='Lưu thay đổi';$('progress').textContent='Thay đổi được ghi vào lịch hiện tại và lưu lịch sử chỉnh sửa.';updateSelection();if(d.start)setWeek(d.start.slice(0,10));showPortal('register');switchView('form');$('edit-banner').scrollIntoView({behavior:'smooth',block:'start'});
-  }).withFailureHandler(err=>{editLoading=false;$('edit-open').disabled=false;$('submit').disabled=false;$('edit-cancel').disabled=false;$('edit-status').textContent=err.message||'Chưa mở được lịch. Vui lòng thử lại.';if(adminId)adminError(err);});
+  }).withFailureHandler(err=>{editLoading=false;if(adminId)renderAdminList();$('edit-open').disabled=false;$('submit').disabled=false;$('edit-cancel').disabled=false;$('edit-status').textContent=err.message||'Chưa mở được lịch. Vui lòng thử lại.';if(adminId)adminError(err);});
   if(adminId)loader.scheduleAdminLoad(token,adminTicket,adminId);else loader.scheduleEditLoad(token,code);
 }
 $('edit-lookup').onsubmit=e=>{e.preventDefault();openRegistration($('edit-code').value);};
 $('edit-receipt').onclick=()=>{$('edit-access').open=true;openRegistration(receiptCode);};
 $('copy-code').onclick=async()=>{try{await navigator.clipboard.writeText(receiptCode);$('copy-status').textContent='Đã sao chép. Hãy lưu mã ở nơi riêng tư.';}catch(e){$('receipt-code').focus();$('receipt-code').select();$('copy-status').textContent='Hãy sao chép phần mã đã chọn.';}};
-$('edit-cancel').onclick=()=>{if(editing?.admin){resetRegistration();showPortal('admin');loadAdminList();return;}resetRegistration();$('edit-access').scrollIntoView({behavior:'smooth',block:'start'});};
+$('edit-cancel').onclick=()=>{if(editing?.admin){resetRegistration();showPortal('admin');renderAdminList();return;}resetRegistration();$('edit-access').scrollIntoView({behavior:'smooth',block:'start'});};
 $('again').onclick=()=>{resetRegistration();form.scrollIntoView({behavior:'smooth',block:'start'});};
 
 function clearAdmin(message){
-  adminSerial++;adminTicket='';adminExpires=0;clearTimeout(adminTimer);adminItems=[];adminNext=null;$('admin-list').replaceChildren();$('admin-content').hidden=true;$('admin-logout').hidden=true;$('admin-login').hidden=false;$('admin-password').value='';$('admin-status').textContent=message||'';
+  adminSerial++;adminTicket='';adminExpires=0;clearTimeout(adminTimer);adminItems=[];adminNext=null;adminLoadedAt=0;adminVisible=50;adminListLoading=false;$('admin-list').replaceChildren();$('admin-content').hidden=true;$('admin-logout').hidden=true;$('admin-login').hidden=false;$('admin-password').value='';$('admin-status').textContent=message||'';
   if(editing?.admin&&!sending){resetRegistration();showPortal('admin');}
 }
 function adminError(err){const message=err.message||'Chưa tải được danh sách. Vui lòng thử lại.';if(/Phiên.*hết hạn/.test(message))clearAdmin(message);else $('admin-status').textContent=message;}
-function loadAdminList(more=false){
-  if(!adminTicket)return;const serial=++adminSerial;$('admin-search').disabled=true;$('admin-more').disabled=true;$('admin-status').textContent='Đang tải danh sách…';
-  google.script.run.withSuccessHandler(result=>{if(serial!==adminSerial)return;$('admin-search').disabled=false;$('admin-more').disabled=false;adminItems=more?[...adminItems,...result.items]:result.items;adminNext=result.next;$('admin-list').replaceChildren();
-    adminItems.forEach(item=>{const row=overviewNode('article','admin-row'),when=overviewNode('div'),body=overviewNode('div'),state=overviewNode('div');when.append(overviewNode('time','',item.start?dateLabel(item.start.slice(0,10))+' · '+item.start.slice(11):'Chưa cố định ngày'));body.append(overviewNode('h3','',item.title),overviewNode('p','hint',item.province||'Không có Lãnh đạo UBND tỉnh'));state.append(overviewNode('p','hint',item.status));const button=overviewNode('button','secondary','Chỉnh sửa');button.type='button';button.disabled=item.removed;button.onclick=()=>openRegistration('',item.id);row.append(when,body,state,button);$('admin-list').append(row);});
-    $('admin-more').hidden=adminNext===null;$('admin-status').textContent=adminItems.length?'Hiển thị '+adminItems.length+' / '+result.total+' đăng ký.':'Không có đăng ký phù hợp.';
-  }).withFailureHandler(err=>{if(serial!==adminSerial)return;$('admin-search').disabled=false;$('admin-more').disabled=false;adminError(err);}).scheduleAdminList(token,adminTicket,{query:$('admin-query').value,scope:$('admin-scope').value,offset:more?adminNext:0});
+/* The authenticated summary lives in this tab's memory only. Search/filter/paging make no RPC. */
+function adminFilteredItems(items,query,scope,day){const q=normalize(query.trim());return items.filter(item=>!(scope==='current'&&(item.removed||item.scheduled&&item.end&&item.end.slice(0,10)<day))&&!(scope==='waiting'&&(item.scheduled||item.removed))&&(!q||normalize([item.title,item.province,item.id,item.status,item.sheet].join(' ')).includes(q))).sort((a,b)=>(a.start||'9999').localeCompare(b.start||'9999')||a.id.localeCompare(b.id));}
+function renderAdminList(){
+  const items=adminFilteredItems(adminItems,$('admin-query').value,$('admin-scope').value,vnDay(new Date()));$('admin-list').replaceChildren();
+  items.slice(0,adminVisible).forEach(item=>{const row=overviewNode('article','admin-row'),when=overviewNode('div'),body=overviewNode('div'),state=overviewNode('div');when.append(overviewNode('time','',item.start?dateLabel(item.start.slice(0,10))+' · '+item.start.slice(11):'Chưa cố định ngày'));body.append(overviewNode('h3','',item.title),overviewNode('p','hint',item.province||'Không có Lãnh đạo UBND tỉnh'));state.append(overviewNode('p','hint',item.status));const button=overviewNode('button','secondary','Chỉnh sửa');button.type='button';button.disabled=item.removed||editLoading||sending;button.onclick=()=>openRegistration('',item.id);row.append(when,body,state,button);$('admin-list').append(row);});
+  $('admin-more').hidden=items.length<=adminVisible;$('admin-status').textContent=(items.length?'Hiển thị '+Math.min(adminVisible,items.length)+' / '+items.length+' đăng ký.':'Không có đăng ký phù hợp.')+(adminLoadedAt?' · Dữ liệu lúc '+clock(new Date(adminLoadedAt))+'.':'')+(adminListLoading?' Đang cập nhật…':'');
 }
-$('admin-login').onsubmit=e=>{e.preventDefault();$('admin-login-button').disabled=true;$('admin-status').textContent='Đang xác thực…';const password=$('admin-password').value;$('admin-password').value='';google.script.run.withSuccessHandler(result=>{adminTicket=result.ticket;adminExpires=result.expires;$('admin-login-button').disabled=false;$('admin-login').hidden=true;$('admin-content').hidden=false;$('admin-logout').hidden=false;clearTimeout(adminTimer);adminTimer=setTimeout(()=>clearAdmin('Phiên quản trị đã hết hạn. Vui lòng đăng nhập lại.'),Math.max(0,adminExpires-Date.now()));loadAdminList();}).withFailureHandler(err=>{$('admin-login-button').disabled=false;adminError(err);}).scheduleAdminLogin(token,password);};
-$('admin-filter').onsubmit=e=>{e.preventDefault();loadAdminList();};$('admin-scope').onchange=()=>loadAdminList();$('admin-more').onclick=()=>loadAdminList(true);
+function applyAdminIndex(index){adminItems=index.items;adminLoadedAt=index.at;adminVisible=50;renderAdminList();}
+function loadAdminList(fresh=false){
+  if(!adminTicket||adminListLoading)return;const serial=++adminSerial;adminListLoading=true;$('admin-search').disabled=true;
+  if(adminLoadedAt)renderAdminList();else $('admin-status').textContent='Đang tải danh sách…';
+  google.script.run.withSuccessHandler(index=>{if(serial!==adminSerial)return;adminListLoading=false;$('admin-search').disabled=false;applyAdminIndex(index);}).withFailureHandler(err=>{if(serial!==adminSerial)return;adminListLoading=false;$('admin-search').disabled=false;adminError(err);}).scheduleAdminSnapshot(token,adminTicket,fresh);
+}
+$('admin-login').onsubmit=e=>{e.preventDefault();$('admin-login-button').disabled=true;$('admin-status').textContent='Đang xác thực và tải danh sách…';const password=$('admin-password').value;$('admin-password').value='';google.script.run.withSuccessHandler(result=>{adminTicket=result.ticket;adminExpires=result.expires;$('admin-login-button').disabled=false;$('admin-search').disabled=false;$('admin-login').hidden=true;$('admin-content').hidden=false;$('admin-logout').hidden=false;clearTimeout(adminTimer);adminTimer=setTimeout(()=>clearAdmin('Phiên quản trị đã hết hạn. Vui lòng đăng nhập lại.'),Math.max(0,adminExpires-Date.now()));if(result.index)applyAdminIndex(result.index);else loadAdminList();}).withFailureHandler(err=>{$('admin-login-button').disabled=false;adminError(err);}).scheduleAdminLogin(token,password);};
+$('admin-filter').onsubmit=e=>{e.preventDefault();loadAdminList(true);};$('admin-query').oninput=()=>{adminVisible=50;renderAdminList();};$('admin-scope').onchange=()=>{adminVisible=50;renderAdminList();};$('admin-more').onclick=()=>{adminVisible+=50;renderAdminList();};
 $('admin-logout').onclick=()=>{if(sending)return;const ticket=adminTicket;clearAdmin('Đã đăng xuất quản trị.');google.script.run.withFailureHandler(()=>{}).scheduleAdminLogout(token,ticket);};
-$('admin-back').onclick=()=>{resetRegistration();showPortal('admin');loadAdminList();};
+$('admin-back').onclick=()=>{resetRegistration();showPortal('admin');renderAdminList();};
 
 google.script.run.withSuccessHandler(data=>{token=data.token;requestId=newId();today=data.today;overviewWeek=overviewMonday(today);$('overview-date').value=today;data.province.forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;$('overview-leader').append(option);});buildGroups(data);$('loading').hidden=true;$('app').hidden=false;setWeek(today);}).withFailureHandler(()=>{$('loading').textContent='Chưa tải được form. Vui lòng tải lại trang sau ít phút.';}).scheduleBootstrap();
 </script></body></html>
