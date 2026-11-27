@@ -26,6 +26,16 @@ function defaultEnd_(start){
 function webRecord_(data) {
   if(!data||typeof data!=='object'||data.website)throw Error('Không thể tiếp nhận đăng ký.');
   const record={};
+  const hasRoles=Object.keys(SPECIALIST_ROLES).some(k=>Object.prototype.hasOwnProperty.call(data,k));
+  if(hasRoles){
+    for(const [key,label] of Object.entries(SPECIALIST_ROLES)){
+      const names=data[key];
+      if(!Array.isArray(names)||names.length>(key==='specialistLead'?1:CONFIG.specialists.length)||names.some(n=>typeof n!=='string'||!CONFIG.specialists.includes(n)))throw Error('Lựa chọn '+label.toLowerCase()+' không hợp lệ.');
+      record[label]=[...new Set(names)].join(', ');
+    }
+    if(data.specialistLead.some(n=>data.specialistSupport.includes(n)))throw Error('Chuyên viên chủ trì không được chọn đồng thời là chuyên viên phối hợp.');
+    data={...data,specialists:[...new Set([...data.specialistLead,...data.specialistSupport])]};
+  }
   ['province','office','specialists'].forEach(k=>{
     if(!Array.isArray(data[k])||data[k].length>CONFIG[k].length||data[k].some(n=>typeof n!=='string'||!CONFIG[k].includes(n)))throw Error('Thành phần không hợp lệ.');
     record[Q[k]]=[...new Set(data[k])].join(', ');
@@ -58,7 +68,7 @@ function scheduleSubmit(token,requestId,data) {
     if(!session||Date.now()-session.created<1500)throw Error('Phiên đã hết hạn hoặc chưa sẵn sàng. Hãy tải lại trang.');
     const ss=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'));
     sheet=ss.getSheetByName('Đăng ký từ website');
-    const required=['Dấu thời gian',...Object.values(Q),...META,'Người đăng ký','Loại thời gian','Gợi ý thời gian','Cách xác định giờ kết thúc','Đăng ký ban đầu (JSON)'];
+    const required=['Dấu thời gian',...Object.values(Q),...META,...Object.values(SPECIALIST_ROLES),'Người đăng ký','Loại thời gian','Gợi ý thời gian','Cách xác định giờ kết thúc','Đăng ký ban đầu (JSON)'];
     if(!sheet){sheet=ss.insertSheet('Đăng ký từ website');sheet.setFrozenRows(1);}
     let headers=sheet.getLastRow()?sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0]:[];
     required.forEach(h=>{if(!headers.includes(h))headers.push(h);});
