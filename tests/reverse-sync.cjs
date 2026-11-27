@@ -29,8 +29,8 @@ const pending=sheet.rows[1].slice();pending[sheet.rows[0].indexOf('Calendar Even
 context.testSheet=sheet;run('processRow_(testSheet,2)');assert.equal(get('Trạng thái xử lý'),'KHÔNG TÌM THẤY TRÊN CALENDAR');
 console.log('Reverse sync checks passed: 5-minute trigger, idempotency, deltas, edits, deletion, restoration, pagination, expired cursor, API failures, formula safety, pending rows and no recreation.');
 
-// Enabling colors forces a complete initial pass even if another sync just advanced the cursor.
-props.set('PARTICIPANT_COLORS_ENABLED','1');listMode='full';changedEvent=original;fetchMissing=false;
-r=run('syncCalendarToSheet_()');assert.equal(calls.at(-1).syncToken,undefined);assert.equal(props.get('PARTICIPANT_COLORS_BACKFILLED'),'1');
+// Retiring colors forces a complete pass, then resumes incremental polling.
+props.delete('PARTICIPANT_COLORS_REMOVED');listMode='full';changedEvent=original;fetchMissing=false;
+r=run('syncCalendarToSheet_()');assert.equal(calls.at(-1).syncToken,undefined);assert.equal(props.get('PARTICIPANT_COLORS_REMOVED'),'1');
 changedEvent=null;r=run('syncCalendarToSheet_()');assert.ok(calls.at(-1).syncToken);
 console.log('Initial color backfill and incremental polling checks passed.');
