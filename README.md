@@ -155,3 +155,9 @@ Tra cứu vẫn hiện nội dung lịch; `blocksTime` tách sự kiện hiển 
 Website tách chuyên viên thành hai phần: chủ trì tối đa một người (radio), phối hợp nhiều người (checkbox). Không chọn một người ở cả hai vai trò. Cả hai dùng danh sách chuyên viên hiện có. Nếu lịch không có chuyên viên, có thể để trống.
 
 Cột **Chuyên viên** vẫn dùng để tương thích và xuất lịch tuần: chủ trì trước, phối hợp sau, không lặp tên. Thêm hai cột riêng **Chuyên viên chủ trì**, **Chuyên viên phối hợp** để lưu vai trò khi đăng ký/sửa; mô tả Calendar lưu cả danh sách tổng và các vai trò. Lịch cũ không tự gán người đầu tiên làm chủ trì: khi mở sửa, giữ người cũ trong phần phối hợp để người dùng phân vai. Kiểm tra trùng vẫn chỉ áp dụng Lãnh đạo UBND tỉnh.
+
+### Toàn bộ lịch tuần trên website
+
+Nút **Toàn bộ lịch tuần** mở lịch thứ hai–chủ nhật, có chọn ngày, tuần trước/sau và bộ lọc từng Lãnh đạo UBND tỉnh độc lập với form đăng ký. Mỗi cuộc họp nằm trong một ô riêng, chỉ hiện giờ, nguyên văn nội dung và lãnh đạo tỉnh tham dự. Có cả lịch đánh dấu không bận; các lịch này không chặn giờ trống. Dưới mỗi ngày hiển thị giờ trống 07–18 của lãnh đạo đang lọc, hoặc giờ trống chung khi xem tất cả. Lịch chưa rõ thành phần vẫn hiển thị và chặn giờ tham khảo để quản trị kiểm tra. Lịch chờ chưa lên Calendar không có trong bảng.
+
+API `scheduleOverview` dùng cùng bộ đọc có phân trang, trả về duy nhất các trường hiển thị công khai; không gửi mô tả, chuyên viên, tài liệu, mã chỉnh sửa hay thông tin liên hệ. Tải khi mở mục, làm mới thủ công hoặc mỗi 5 phút khi mục đang hiển thị. Không ghi vào Calendar/Sheet.
