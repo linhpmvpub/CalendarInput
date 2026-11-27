@@ -84,6 +84,7 @@ function syncCalendarToSheet_(){
   let ss,summary={ok:false,tracked:0,changed:0,deleted:0,calls:0};
   try{
     const p=PropertiesService.getScriptProperties();ss=SpreadsheetApp.openById(p.getProperty('SHEET_ID'));
+    if(typeof schedulingMaintenance_==='function')schedulingMaintenance_(ss,began+60000);
     const sheets=[],refs=[],ids=new Set();
     ss.getSheets().forEach(sheet=>{
       if(sheet.getLastRow()<1||[RS.health,RS.log].includes(sheet.getName()))return;
