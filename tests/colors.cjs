@@ -17,21 +17,23 @@ assert.equal(choice([],['Người chưa rõ'],['Chuyên viên H']),null);
 props.set('PARTICIPANT_COLOR_MAP',JSON.stringify(context.colorDeputies_()));
 run('CONFIG.province.reverse();colorMapMemo_=null;');assert.equal(choice([names[1]]).id,'9');
 const description='Lãnh đạo UBND tỉnh: '+names[0]+'\nLãnh đạo Văn phòng UBND tỉnh: \nChuyên viên: ';
-const event={id:'existing',etag:'current',status:'confirmed',description,summary:'Do not change title',colorId:'8'};
+const event={id:'existing',etag:'current',status:'confirmed',description,summary:'Do not change title',colorId:'11'};
 const budget=()=>({changed:0,matched:0,unclassified:0,deadline:Date.now()+10000});
-items=[event];let b=budget();const updated=context.colorApply_(event,b);assert.equal(updated.colorId,'11');assert.equal(b.changed,1);assert.equal(patches.length,1);
+items=[event];let b=budget();const updated=context.colorApply_(event,b);assert.equal(updated.colorId,null);assert.equal(updated.summary,event.summary);assert.equal(context.colorEvent_(event),null);assert.equal(context.colorLegend_().length,0);assert.equal(Object.keys(context.colorFields_({})).length,0);assert.equal(b.changed,1);assert.equal(patches.length,1);
 context.colorApply_(updated,b);assert.equal(patches.length,1);assert.equal(b.matched,1);
 context.colorApply_({...event,status:'cancelled'},b);assert.equal(patches.length,1);
 context.colorApply_({...event,description:'Họp với '+names[0]},b);assert.equal(patches.length,1); // no inference from arbitrary prose
 const metadata=run("encodePeople_(['province:Chủ tịch UBND tỉnh A'])");
-const manual={...event,extendedProperties:{private:metadata},description:'Lãnh đạo UBND tỉnh: '+names[2]};assert.equal(context.colorEvent_(manual).id,'5');
-assert.equal(context.colorEvent_({...manual,description:'Lãnh đạo UBND tỉnh: \nLãnh đạo Văn phòng UBND tỉnh: Văn phòng G'}).id,'10');
+const manual={...event,extendedProperties:{private:metadata},description:'Lãnh đạo UBND tỉnh: '+names[2]};assert.equal(context.colorChoice_(context.colorParticipants_(manual)).id,'5');
+assert.equal(context.colorChoice_(context.colorParticipants_({...manual,description:'Lãnh đạo UBND tỉnh: \nLãnh đạo Văn phòng UBND tỉnh: Văn phòng G'})).id,'10');
 // Legacy metadata still works if group lines are absent.
-assert.equal(context.colorEvent_({...manual,description:''}).id,'11');
+assert.equal(context.colorChoice_(context.colorParticipants_({...manual,description:''})).id,'11');
 conflict=true;assert.throws(()=>context.colorApply_(event,budget()),/412/);conflict=false;
 assert.throws(()=>context.colorApply_(event,{...budget(),changed:100}),/từng đợt/);
 // The existing incremental sync sees unlinked manual events too, and preserves its cursor on failure.
 props.set('PARTICIPANT_COLORS_ENABLED','1');const result=context.reverseFetch_('old-token',new Set(),Date.now()+10000);assert.equal(result.colors.changed,1);assert.equal(result.found.size,0);assert.equal(result.nextToken,'new-token');
-conflict=true;assert.throws(()=>context.reverseFetch_('old-token',new Set(),Date.now()+10000),/412/);
+conflict=true;assert.throws(()=>context.reverseFetch_('old-token',new Set(),Date.now()+10000),/412/);conflict=false;
+props.set('PARTICIPANT_COLORS_REMOVED','1');const before=patches.length;context.reverseFetch_('old-token',new Set(),Date.now()+10000);assert.equal(patches.length,before);
+context.colorApply_({...event,colorId:'4'},budget());assert.equal(patches.length,before);
 const html=fs.readFileSync(__dirname+'/../apps-script/WebRegistration.html','utf8');new vm.Script(html.match(/<script>([\s\S]*)<\/script>/)[1]);
-console.log('Color checks passed: priorities, all five deputy colors, stable mappings, explicit descriptions, metadata fallback, no guesses, idempotency, canceled events, conditional patches, unlinked events, batch limits and UI syntax.');
+console.log('Retired color checks passed: default new events, no legend, one-time reset, preserved manual colors,  priorities, all five deputy colors, stable mappings, explicit descriptions, metadata fallback, no guesses, idempotency, canceled events, conditional patches, unlinked events, batch limits and UI syntax.');
