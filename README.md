@@ -136,7 +136,7 @@ Kiểm tra luồng nhường chỗ/ưu tiên/xếp lại và lỗi giữa chừn
 `WeeklyReport.gs` tạo tab **Lịch công tác tuần** trong workbook hiện có. Chạy qua trigger `syncCalendarToSheet_` mỗi 5 phút, sau khi nhả khóa đăng ký; không thêm trigger và không cần triển khai lại web. Mọi hàm quản trị đều riêng tư (đuôi `_`).
 
 - Ô **C3** chọn một ngày trong tuần cần xem; bảng tự tính thứ hai–chủ nhật. Tuần ban đầu 30/11–06/12/2026 theo mẫu cung cấp. Không tự chuyển tuần; đổi C3 để chọn tuần khác.
-- Cột Thời gian, Nội dung, Địa điểm, LĐVP + Chuyên viên; chia sáng/chiều/tối, giờ 24h. Lịch song song nằm ở các dòng riêng. Lịch kéo dài nhiều buổi/ngày được hiện ở các phần tương ứng. Lịch cả ngày dùng đúng ngày kết thúc loại trừ của Calendar.
+- Cột Thời gian, Nội dung, Địa điểm, LĐVP + Chuyên viên; chia sáng/chiều/tối. Nội dung hiển thị `08h00: [nguyên văn nội dung cuộc họp]`, chỉ giờ bắt đầu theo định dạng 24h, không thêm giờ kết thúc hoặc dòng liệt kê Lãnh đạo UBND tỉnh. Cột LĐVP/CV giữ riêng. Lịch song song nằm ở các dòng riêng. Lịch kéo dài nhiều buổi/ngày được hiện ở các phần tương ứng. Lịch cả ngày dùng đúng ngày kết thúc loại trừ của Calendar.
 - Đọc tất cả sự kiện trong Calendar chung ở tuần đã chọn, kể cả sự kiện tạo trực tiếp và từng lần của lịch lặp. Lịch hủy bị loại khỏi bảng; lịch chưa lên Calendar không xuất hiện.
 - Tên lãnh đạo lấy từ mô tả có nhãn hoặc metadata đăng ký. Hỗ trợ nhãn LĐVP/CV khi nhập tay; không suy đoán thành phần còn thiếu. Lịch có LĐVP và không có lãnh đạo tỉnh được tách xuống phần lịch riêng Văn phòng khi thông tin đủ rõ.
 - Dòng 4 ghi lần cập nhật và số sự kiện (không phải số dòng, vì một sự kiện có thể chiếm nhiều buổi). Ghi chú ô Nội dung chứa ID và liên kết Calendar.
