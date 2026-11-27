@@ -116,6 +116,14 @@ function calendarGet_(id){
     throw e;
   }
 }
+// Only provincial leaders reserve time. Office leaders/specialists remain participants.
+function provinceConflict_(people,event){
+  const selected=people.filter(n=>n.startsWith('province:')).map(n=>n.slice(9));
+  if(!selected.length||event.status==='cancelled'||event.transparency==='transparent')return false;
+  const current=colorParticipants_(event);
+  // Preserve the manual-review safeguard only when provincial leaders are selected.
+  return current===null||selected.some(n=>current.province.includes(n));
+}
 function processRow_(sheet,row){
   if(row<2)throw Error('Chọn một dòng dữ liệu.');
   const lock=LockService.getScriptLock();lock.waitLock(30000);
@@ -140,18 +148,14 @@ function processRow_(sheet,row){
       const v=validate_(record);
       if(v.flexible){put(META[1],'CHỜ XẾP NGÀY');put(META[3],'Chưa cố định ngày. Chưa tạo sự kiện Calendar.');return;}
       let pageToken,conflict=false;
-      do{
+      if(v.people.some(n=>n.startsWith('province:')))do{
         const result=Calendar.Events.list(CONFIG.calendarId,{timeMin:v.start.toISOString(),timeMax:v.end.toISOString(),singleEvents:true,showDeleted:false,maxResults:2500,...(pageToken?{pageToken}:{})});
         for(const event of result.items||[]){
-          if(event.transparency==='transparent')continue;
-          const others=decodePeople_(event.extendedProperties&&event.extendedProperties.private);
-          // Lịch nhập thủ công không có mã người: giữ lại để quản trị kiểm tra, không tự chèn.
-          if(!others){conflict=true;break;}
-          if(v.people.some(x=>others.includes(x))){conflict=true;break;}
+          if(provinceConflict_(v.people,event)){conflict=true;break;}
         }
         pageToken=result.nextPageToken;
       }while(pageToken&&!conflict);
-      if(conflict){put(META[1],'CHỜ XỬ LÝ TRÙNG LỊCH');put(META[3],'Trùng thành phần hoặc khoảng thời gian có lịch nhập thủ công. Không tự thay thế.');return;}
+      if(conflict){put(META[1],'CHỜ XỬ LÝ TRÙNG LỊCH');put(META[3],'Trùng lịch Lãnh đạo UBND tỉnh hoặc lịch nhập tay chưa rõ thành phần lãnh đạo tỉnh. Không tự thay thế.');return;}
       const peopleProperties=encodePeople_(v.people);
       const endEstimated=String(record['Cách xác định giờ kết thúc']||'').startsWith('Mặc định hết buổi');
       if(endEstimated)peopleProperties.endEstimated='true';
