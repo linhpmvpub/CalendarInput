@@ -58,7 +58,7 @@ function scheduleSubmit(token,requestId,data) {
     if(!session||Date.now()-session.created<1500)throw Error('Phiên đã hết hạn hoặc chưa sẵn sàng. Hãy tải lại trang.');
     const ss=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'));
     sheet=ss.getSheetByName('Đăng ký từ website');
-    const required=['Dấu thời gian',...Object.values(Q),...META,'Người đăng ký','Loại thời gian','Gợi ý thời gian','Cách xác định giờ kết thúc'];
+    const required=['Dấu thời gian',...Object.values(Q),...META,'Người đăng ký','Loại thời gian','Gợi ý thời gian','Cách xác định giờ kết thúc','Đăng ký ban đầu (JSON)'];
     if(!sheet){sheet=ss.insertSheet('Đăng ký từ website');sheet.setFrozenRows(1);}
     let headers=sheet.getLastRow()?sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0]:[];
     required.forEach(h=>{if(!headers.includes(h))headers.push(h);});
@@ -78,16 +78,37 @@ function scheduleSubmit(token,requestId,data) {
       session.count++;cache.put(key,JSON.stringify(session),21600);
       p.setProperty('WEB_DAILY_COUNT',JSON.stringify({day,count:count+1}));
       record['Dấu thời gian']=new Date();record[META[0]]=id;record[META[1]]='ĐANG XỬ LÝ';
+      // Keep an independent ISO-date snapshot before writing native Sheet dates.
+      record['Đăng ký ban đầu (JSON)']=JSON.stringify(record);
       row=sheet.getLastRow()+1;
       sheet.getRange(row,1,1,headers.length).setValues([headers.map(h=>record[h] instanceof Date?record[h]:safe_(record[h]||''))]);
       [Q.start,Q.end,'Dấu thời gian'].forEach(h=>sheet.getRange(row,headers.indexOf(h)+1).setNumberFormat('dd/MM/yyyy HH:mm'));
       SpreadsheetApp.flush();
+      webVerifyDates_(sheet,row,headers,record);
     }
     editCode=ensureEditCode_(sheet,row);
   } finally {lock.releaseLock();}
   try {processRow_(sheet,row);}catch(e){console.error('Web submission processing failed: '+String(e));}
   const h=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0],v=sheet.getRange(row,1,1,h.length).getValues()[0];
-  return {id:String(v[h.indexOf(META[0])]),status:String(v[h.indexOf(META[1])]),editCode};
+  return {id:String(v[h.indexOf(META[0])]),status:String(v[h.indexOf(META[1])]),message:String(v[h.indexOf(META[3])]||''),sheetRow:row,editCode};
+}
+
+function webVerifyDates_(sheet,row,headers,record){
+  const keys=['Dấu thời gian',Q.start,Q.end].filter(k=>record[k] instanceof Date);
+  let values=sheet.getRange(row,1,1,headers.length).getValues()[0];
+  for(const k of keys){
+    const col=headers.indexOf(k),saved=values[col];
+    if(saved===''||saved===null)sheet.getRange(row,col+1).setValue(record[k]);
+  }
+  SpreadsheetApp.flush();values=sheet.getRange(row,1,1,headers.length).getValues()[0];
+  for(const k of keys){
+    const saved=values[headers.indexOf(k)];
+    if(!(saved instanceof Date)||Math.abs(+saved-+record[k])>1000){
+      sheet.getRange(row,headers.indexOf(META[1])+1).setValue('LỖI ĐỒNG BỘ');
+      sheet.getRange(row,headers.indexOf(META[3])+1).setValue('Chưa xác minh được ngày giờ sau khi ghi Sheet. Bản đăng ký gốc đã được lưu để khôi phục.');
+      throw Error('Đăng ký đã được lưu trong Sheet, nhưng chưa xác minh được ngày giờ. Vui lòng báo bộ phận tổng hợp; không cần tạo đăng ký khác.');
+    }
+  }
 }
 
 function scheduleAvailability(day,selection) {
