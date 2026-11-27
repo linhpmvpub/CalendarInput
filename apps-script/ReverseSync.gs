@@ -61,19 +61,21 @@ function reverseHeaders_(sheet,columns){
 }
 function reverseHealth_(ss,summary){
   const p=PropertiesService.getScriptProperties();let sheet=ss.getSheetByName(RS.health);const created=!sheet;if(!sheet)sheet=ss.insertSheet(RS.health);
-  const rows=[['ĐỒNG BỘ CALENDAR → SHEET','Giá trị'],['Chu kỳ','Mỗi 5 phút (thời điểm chạy có thể lệch)'],['Trạng thái lần gần nhất',summary.ok?'THÀNH CÔNG':'LỖI — giữ nguyên trạng thái lịch đã xác minh'],['Lần chạy gần nhất',new Date()],['Lần thành công gần nhất',p.getProperty('REVERSE_SYNC_LAST_OK')?new Date(p.getProperty('REVERSE_SYNC_LAST_OK')):''],['Số dòng theo dõi',summary.tracked||0],['Số thay đổi ghi nhận',summary.changed||0],['Số lịch đã hủy phát hiện',summary.deleted||0],['Số yêu cầu Calendar',summary.calls||0],['Thời gian chạy (giây)',Math.round((summary.duration||0)/100)/10],['Thông tin',summary.error||'Giữ nguyên đăng ký gốc. Xem cột Trạng thái Calendar và tab Nhật ký đồng bộ lịch.'],['Phạm vi','Các lịch được tạo từ đăng ký trong Sheet; không nhập lịch tạo riêng trên Calendar thành dòng đăng ký mới.']];
+  const rows=[['ĐỒNG BỘ CALENDAR → SHEET','Giá trị'],['Chu kỳ','Mỗi 5 phút (thời điểm chạy có thể lệch)'],['Trạng thái lần gần nhất',summary.ok?'THÀNH CÔNG':'LỖI — giữ nguyên trạng thái lịch đã xác minh'],['Lần chạy gần nhất',new Date()],['Lần thành công gần nhất',p.getProperty('REVERSE_SYNC_LAST_OK')?new Date(p.getProperty('REVERSE_SYNC_LAST_OK')):''],['Số dòng theo dõi',summary.tracked||0],['Số thay đổi ghi nhận',summary.changed||0],['Số lịch đã hủy phát hiện',summary.deleted||0],['Số yêu cầu Calendar',summary.calls||0],['Số lịch đổi màu lần này',summary.colors?.changed||0],['Lịch chưa xác định thành phần (lượt này)',summary.colors?.unclassified||0],['Thời gian chạy (giây)',Math.round((summary.duration||0)/100)/10],['Thông tin',summary.error||'Giữ nguyên đăng ký gốc. Xem cột Trạng thái Calendar và tab Nhật ký đồng bộ lịch.'],['Phạm vi','Các lịch được tạo từ đăng ký trong Sheet; không nhập lịch tạo riêng trên Calendar thành dòng đăng ký mới.']];
   sheet.getRange(1,1,rows.length,2).setValues(rows.map(r=>r.map(reverseCell_)));if(created){sheet.setFrozenRows(1);sheet.setColumnWidth(1,230);sheet.setColumnWidth(2,620);sheet.getRange(1,1,rows.length,2).setWrap(true);sheet.getRange(4,2,2,1).setNumberFormat('dd/MM/yyyy HH:mm:ss');sheet.getRange(1,1,1,2).setFontWeight('bold').setBackground('#dcefe8');}
 }
 function reverseFetch_(token,ids,deadline){
-  const found=new Map();let pageToken,nextToken,calls=0,pages=0;
+  const found=new Map(),colors={changed:0,matched:0,unclassified:0,deadline};
+  const colorEnabled=PropertiesService.getScriptProperties().getProperty('PARTICIPANT_COLORS_ENABLED')==='1';
+  let pageToken,nextToken,calls=0,pages=0;
   do{
     if(Date.now()>deadline||pages>=RS.maxPages)throw Error('Chưa đọc đủ Calendar; sẽ thử lại ở lượt kế tiếp.');
     const result=Calendar.Events.list(CONFIG.calendarId,{maxResults:2500,singleEvents:false,showDeleted:true,...(token?{syncToken:token}:{}),...(pageToken?{pageToken}:{})});calls++;pages++;
-    (result.items||[]).forEach(event=>{if(ids.has(event.id))found.set(event.id,event);});
+    (result.items||[]).forEach(item=>{const event=colorEnabled?colorApply_(item,colors):item;if(ids.has(event.id))found.set(event.id,event);});
     pageToken=result.nextPageToken;nextToken=result.nextSyncToken;
   }while(pageToken);
   if(!nextToken)throw Error('Calendar chưa trả mốc đồng bộ; không bỏ qua thay đổi.');
-  return {found,nextToken,calls};
+  return {found,nextToken,calls:calls+colors.changed,colors};
 }
 function reverseMissingError_(error){return /\b404\b|\b410\b|not found|resource has been deleted|\bgone\b/i.test(String(error));}
 function syncCalendarToSheet_(){
@@ -100,7 +102,7 @@ function syncCalendarToSheet_(){
     try{result=reverseFetch_(token,ids,began+RS.maxMs);}catch(e){
       if(token&&/\b410\b|sync token.*invalid|full sync.*required|fullSyncRequired/i.test(String(e))){full=true;result=reverseFetch_(null,ids,began+RS.maxMs);}else throw e;
     }
-    summary.calls+=result.calls;
+    summary.calls+=result.calls;summary.colors=result.colors;
     // New linked rows can appear after the token was issued. Bootstrap those by ID.
     // Full resync also checks missing IDs, without inferring deletion from a missing list item.
     let lookups=0;const failures=new Map();
