@@ -51,3 +51,23 @@ const cmdCol=sheet.rows[0].indexOf('Thao tác xếp lịch')+1;put(2,'Thao tác 
 context.syncCalendarToSheet_();assert.equal(get(2,'Trạng thái xử lý'),'CHỜ XẾP LỊCH');assert.equal(get(3,'Trạng thái xử lý'),'CHỜ XẾP LỊCH');
 const log=ss.getSheetByName('Nhật ký xếp lịch');assert.equal(new Set(log.rows.slice(1).map(r=>r[0])).size,log.rows.length-1);
 console.log('Sheet scheduling checks passed: A→waiting, priority B→Calendar, conflicts, rescheduling with new Event ID, retained edit code, cancellation timeout, partial Sheet recovery, concurrency, default end, private edit trigger, reverse sync and audit idempotency.');
+
+// Province-only conflicts, with real submission/edit/Sheet promotion paths.
+const sameStaff={...data,start:'2027-12-10T08:00',end:'2027-12-10T09:00',office:['Văn phòng C'],specialists:['Chuyên viên D']};
+const leaderA=context.scheduleSubmit(token,op(),{...sameStaff,title:'Leader A'});
+const leaderB=context.scheduleSubmit(token,op(),{...sameStaff,title:'Leader B',province:['Phó Chủ tịch UBND tỉnh B']});
+assert.equal(leaderA.status,'ĐÃ LÊN LỊCH');assert.equal(leaderB.status,'ĐÃ LÊN LỊCH');
+assert.ok(events.get(leaderB.id).description.includes('Chuyên viên D'));
+const sameLeader=context.scheduleSubmit(token,op(),{...sameStaff,title:'Still conflicts with A',office:[],specialists:[]});assert.equal(sameLeader.status,'CHỜ XỬ LÝ TRÙNG LỊCH');
+const staffOnly=context.scheduleSubmit(token,op(),{...sameStaff,province:[],title:'Office and specialists only'});assert.equal(staffOnly.status,'ĐÃ LÊN LỊCH');
+let editLoad=context.scheduleEditLoad(token,leaderB.editCode);
+assert.equal(context.scheduleUpdate(token,leaderB.editCode,editLoad.revision,op(),{...editLoad.data,title:'Edited B with shared staff'}).status,'ĐÃ LÊN LỊCH');
+editLoad=context.scheduleEditLoad(token,leaderB.editCode);
+assert.throws(()=>context.scheduleUpdate(token,leaderB.editCode,editLoad.revision,op(),{...editLoad.data,province:['Chủ tịch UBND tỉnh A']}),/trùng lịch/);
+const rowOf=id=>sheet.rows.findIndex(r=>r[sheet.rows[0].indexOf('Mã đăng ký')]===id)+1;
+const bRow=rowOf(leaderB.id);action(bRow,'ĐƯA VỀ CHỜ');action(bRow,'ĐẨY LÊN CALENDAR');assert.equal(get(bRow,'Trạng thái xử lý'),'ĐÃ LÊN LỊCH');
+const cRow=rowOf(sameLeader.id);put(cRow,'Lãnh đạo UBND tỉnh','');put(cRow,'Lãnh đạo Văn phòng UBND tỉnh','Văn phòng C');put(cRow,'Chuyên viên','Chuyên viên D');action(cRow,'ĐẨY LÊN CALENDAR');assert.equal(get(cRow,'Trạng thái xử lý'),'ĐÃ LÊN LỊCH');
+events.set('manual-unknown',{id:'manual-unknown',summary:'Manual unknown',start:{dateTime:'2027-12-11T01:00:00Z'},end:{dateTime:'2027-12-11T02:00:00Z'}});
+const unknownStaff=context.scheduleSubmit(token,op(),{...sameStaff,province:[],start:'2027-12-11T08:00',end:'2027-12-11T09:00'});assert.equal(unknownStaff.status,'ĐÃ LÊN LỊCH');
+const unknownLeader=context.scheduleSubmit(token,op(),{...sameStaff,start:'2027-12-11T08:00',end:'2027-12-11T09:00'});assert.equal(unknownLeader.status,'CHỜ XỬ LÝ TRÙNG LỊCH');
+console.log('Province-only integration passed: shared staff allowed, same leader blocked, staff-only allowed, edits and Sheet promotion use the same rule, participant metadata retained.');
