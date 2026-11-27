@@ -98,7 +98,8 @@ function syncCalendarToSheet_(){
       }
     });
     summary.tracked=refs.length;
-    let token=p.getProperty(RS.calendar)===CONFIG.calendarId?p.getProperty(RS.token):null,full=!token,result;
+    const colorBackfill=p.getProperty('PARTICIPANT_COLORS_ENABLED')==='1'&&p.getProperty('PARTICIPANT_COLORS_BACKFILLED')!=='1';
+    let token=!colorBackfill&&p.getProperty(RS.calendar)===CONFIG.calendarId?p.getProperty(RS.token):null,full=!token,result;
     try{result=reverseFetch_(token,ids,began+RS.maxMs);}catch(e){
       if(token&&/\b410\b|sync token.*invalid|full sync.*required|fullSyncRequired/i.test(String(e))){full=true;result=reverseFetch_(null,ids,began+RS.maxMs);}else throw e;
     }
@@ -159,6 +160,7 @@ function syncCalendarToSheet_(){
     if(logs.length){const log=ss.getSheetByName(RS.log)||ss.insertSheet(RS.log);reverseHeaders_(log,RS.logColumns);log.getRange(log.getLastRow()+1,1,logs.length,RS.logColumns.length).setValues(logs.map(r=>r.map(reverseCell_)));log.getRange(2,1,log.getLastRow()-1,1).setNumberFormat('dd/MM/yyyy HH:mm:ss');}
     SpreadsheetApp.flush();
     // Commit cursor only after all Sheet writes succeed. A failed poll is replayed.
+    if(colorBackfill)p.setProperty('PARTICIPANT_COLORS_BACKFILLED','1');
     p.setProperty(RS.token,result.nextToken);p.setProperty(RS.calendar,CONFIG.calendarId);p.setProperty('REVERSE_SYNC_LAST_OK',new Date().toISOString());
     summary.ok=true;summary.duration=Date.now()-began;reverseHealth_(ss,summary);console.log(JSON.stringify(summary));return summary;
   }catch(e){summary.error=String(e).slice(0,1000);summary.duration=Date.now()-began;if(ss)try{reverseHealth_(ss,summary);}catch(ignore){}console.error(JSON.stringify(summary));throw e;}
