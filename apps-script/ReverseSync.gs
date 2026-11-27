@@ -166,5 +166,9 @@ function syncCalendarToSheet_(){
     p.setProperty(RS.token,result.nextToken);p.setProperty(RS.calendar,CONFIG.calendarId);p.setProperty('REVERSE_SYNC_LAST_OK',new Date().toISOString());
     summary.ok=true;summary.duration=Date.now()-began;reverseHealth_(ss,summary);console.log(JSON.stringify(summary));return summary;
   }catch(e){summary.error=String(e).slice(0,1000);summary.duration=Date.now()-began;if(ss)try{reverseHealth_(ss,summary);}catch(ignore){}console.error(JSON.stringify(summary));throw e;}
-  finally{lock.releaseLock();}
+  finally{
+    lock.releaseLock();
+    // Render the weekly view after releasing the registration lock.
+    if(ss&&typeof weeklyReportRefresh_==='function')weeklyReportRefresh_(ss);
+  }
 }
