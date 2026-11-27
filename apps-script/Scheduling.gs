@@ -1,6 +1,6 @@
 /* Private Sheet administration. No callable public web endpoint.
    An installable edit trigger and the existing five-minute poll share one lock. */
-const PLAN={command:'Thao tác xếp lịch',reason:'Lý do điều phối',result:'Kết quả xếp lịch',at:'Cập nhật xếp lịch lúc',state:'Trạng thái điều phối',history:'Lịch sử Event ID',snapshot:'Bản lưu trước khi chờ (JSON)',pending:'Giao dịch xếp lịch (JSON)',log:'Nhật ký xếp lịch',hold:'ĐƯA VỀ CHỜ',push:'ĐẨY LÊN CALENDAR',waiting:'CHỜ XẾP LỊCH'};
+const PLAN={command:'Thao tác xếp lịch',reason:'Lý do điều phối',result:'Kết quả xếp lịch',at:'Cập nhật xếp lịch lúc',state:'Trạng thái điều phối',history:'Lịch sử Event ID',snapshot:'Bản lưu trước khi chờ (JSON)',pending:'Giao dịch xếp lịch (JSON)',log:'Nhật ký xếp lịch',hold:'ĐƯA VỀ CHỜ',push:'ĐẨY LÊN CALENDAR',force:'ĐẨY LÊN CALENDAR (BỎ QUA TRÙNG LỊCH)',waiting:'CHỜ XẾP LỊCH'};
 function schedulingGuard_(record){
   if(record[PLAN.pending])throw Error('Bộ phận tổng hợp đang điều phối lịch này. Vui lòng chờ xử lý hoàn tất.');
   if(record[PLAN.state]==='ĐANG CHỜ')throw Error('Lịch đã được bộ phận tổng hợp chuyển về danh sách chờ. Liên hệ bộ phận tổng hợp để sửa hoặc xếp lại lịch.');
@@ -20,12 +20,14 @@ function schedulingSetup_(ss){
     editHeaders_(sheet);reverseHeaders_(sheet,RS.columns);
     const before=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
     const h=reverseHeaders_(sheet,[PLAN.command,PLAN.reason,PLAN.result,PLAN.at,PLAN.state,PLAN.history,PLAN.snapshot,PLAN.pending]);
-    if(!before.includes(PLAN.command)){
-      sheet.getRange(2,h.indexOf(PLAN.command)+1,Math.max(1,sheet.getMaxRows()-1),1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList([PLAN.hold,PLAN.push],true).setAllowInvalid(false).build());
-      const instructions='Chọn ĐƯA VỀ CHỜ để gỡ lịch khỏi Calendar và giữ đăng ký; chờ báo thành công rồi chọn ĐẨY LÊN CALENDAR ở dòng ưu tiên. Khi xếp lại, sửa Bắt đầu/Kết thúc trước. Không sửa tay trạng thái hoặc Event ID. Lệnh chạy khi sửa ô; nếu bị gián đoạn sẽ kiểm tra lại trong 5 phút.';
+    const forceSheet=sheet.getName()==='Đăng ký từ website';
+    if(!before.includes(PLAN.command)||(forceSheet&&!p.getProperty('SCHEDULING_FORCE_UI_V1'))){
+      sheet.getRange(2,h.indexOf(PLAN.command)+1,Math.max(1,sheet.getMaxRows()-1),1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(forceSheet?[PLAN.hold,PLAN.push,PLAN.force]:[PLAN.hold,PLAN.push],true).setAllowInvalid(false).build());
+      const instructions=(forceSheet?'Ngoại lệ: chọn '+PLAN.force+' để tạo lịch dù trùng lãnh đạo tỉnh; giữ nguyên các lịch đang có. Có thể ghi Lý do điều phối trước khi chọn. ':'')+'Chọn ĐƯA VỀ CHỜ để gỡ lịch khỏi Calendar và giữ đăng ký; chờ báo thành công rồi chọn ĐẨY LÊN CALENDAR ở dòng ưu tiên. Khi xếp lại, sửa Bắt đầu/Kết thúc trước. Không sửa tay trạng thái hoặc Event ID. Lệnh chạy khi sửa ô; nếu bị gián đoạn sẽ kiểm tra lại trong 5 phút.';
       sheet.getRange(1,h.indexOf(PLAN.command)+1).setNote(instructions).setBackground('#dcefe8').setFontWeight('bold');
-      sheet.setColumnWidth(h.indexOf(PLAN.command)+1,220);sheet.setColumnWidth(h.indexOf(PLAN.reason)+1,240);sheet.setColumnWidth(h.indexOf(PLAN.result)+1,420);
+      sheet.setColumnWidth(h.indexOf(PLAN.command)+1,forceSheet?330:220);sheet.setColumnWidth(h.indexOf(PLAN.reason)+1,240);sheet.setColumnWidth(h.indexOf(PLAN.result)+1,420);
       sheet.getRange(2,h.indexOf(PLAN.result)+1,Math.max(1,sheet.getMaxRows()-1),1).setWrap(true);
+      if(forceSheet)p.setProperty('SCHEDULING_FORCE_UI_V1','1');
     }
   });
 }
@@ -47,7 +49,7 @@ function schedulingMaintenance_(ss,deadline){
     const values=sheet.getDataRange().getValues(),h=values[0];
     for(let row=2;row<=values.length;row++){
       const v=values[row-1],command=String(v[h.indexOf(PLAN.command)]||''),pending=v[h.indexOf(PLAN.pending)];
-      if(pending||[PLAN.hold,PLAN.push].includes(command))work.push({sheet,row,command});
+      if(pending||[PLAN.hold,PLAN.push,PLAN.force].includes(command))work.push({sheet,row,command});
     }
   });
   work.sort((a,b)=>(a.command===PLAN.hold?0:1)-(b.command===PLAN.hold?0:1));
@@ -68,9 +70,18 @@ function schedulingRun_(sheet,row){
   const put=(k,v)=>editPut_(ref,k,v);
   try{
     if(/KIỂM THỬ ĐÃ DỌN/.test(String(ref.record[META[1]])))return;
-    if(ref.record[PLAN.pending])tx=JSON.parse(String(ref.record[PLAN.pending]));
+    if(ref.record[PLAN.command]===PLAN.force&&sheet.getName()!=='Đăng ký từ website')throw Error('Lệnh xếp ngoại lệ chỉ dùng trong tab Đăng ký từ website.');
+    if(ref.record[PLAN.pending]){
+      tx=JSON.parse(String(ref.record[PLAN.pending]));
+      // A normal promotion blocked after journaling may be explicitly upgraded before creation.
+      if(ref.record[PLAN.command]===PLAN.force&&tx.action===PLAN.push&&!schedulingGet_(tx.newId)){
+        tx.action=PLAN.force;tx.reason=String(ref.record[PLAN.reason]||'');
+        tx.resource.extendedProperties.private.schedulingConflictOverride='true';
+        put(PLAN.pending,JSON.stringify(tx));SpreadsheetApp.flush();
+      }
+    }
     else{
-      const command=String(ref.record[PLAN.command]||'');if(![PLAN.hold,PLAN.push].includes(command))return;
+      const command=String(ref.record[PLAN.command]||'');if(![PLAN.hold,PLAN.push,PLAN.force].includes(command))return;
       if(!/^[a-f0-9]{32,41}$/.test(String(ref.record[META[0]]||'')))throw Error('Dòng chưa có mã đăng ký hợp lệ.');
       if(ref.record[EDIT.pending])throw Error('Có lần chỉnh sửa website chưa hoàn tất; cần mở và hoàn tất chỉnh sửa trước.');
       tx={id:'s'+Utilities.getUuid().replace(/-/g,''),registration:String(ref.record[META[0]]),action:command,at:new Date().toISOString(),reason:String(ref.record[PLAN.reason]||''),before:schedulingInput_(ref.record),oldId:String(ref.record[META[2]]||'')};
@@ -89,13 +100,14 @@ function schedulingRun_(sheet,row){
         const record=schedulingRecord_(schedulingInput_(ref.record));
         if(record[Q.start] instanceof Date)record['Loại thời gian']='Ngày giờ cụ thể';
         const v=validate_(record);if(v.flexible)throw Error('Điền Bắt đầu và Kết thúc (hoặc để trống kết thúc để mặc định hết buổi) trước khi đẩy lịch.');
-        editConflict_(record,null);tx.record=record;
+        if(command!==PLAN.force)editConflict_(record,null);tx.record=record;
         // A held registration gets a new Calendar ID; keep the original registration/edit code.
         tx.newId=ref.record[PLAN.state]==='ĐANG CHỜ'?'b'+Utilities.getUuid().replace(/-/g,''):tx.registration;
         tx.resource=editResource_(ref,record,null,tx.id);
         const saved=ref.record[PLAN.snapshot]?JSON.parse(String(ref.record[PLAN.snapshot])):null;
         if(saved){['attachments','reminders','visibility','transparency','guestsCanModify','guestsCanInviteOthers','guestsCanSeeOtherGuests'].forEach(k=>{if(saved[k]!==undefined)tx.resource[k]=saved[k];});}
         tx.resource.extendedProperties.private.schedulingOperation=tx.id;
+        tx.resource.extendedProperties.private.schedulingConflictOverride=String(command===PLAN.force);
       }
       if(JSON.stringify(tx).length>42000)throw Error('Thông tin sự kiện quá lớn; cần quản trị xử lý trực tiếp.');
       put(PLAN.pending,JSON.stringify(tx));SpreadsheetApp.flush();
@@ -115,7 +127,7 @@ function schedulingRun_(sheet,row){
       event=schedulingGet_(tx.newId);
       if(event){if(event.status==='cancelled'||event.extendedProperties?.private?.schedulingOperation!==tx.id)throw Error('Mã sự kiện đã được dùng; cần kiểm tra, không tự tạo trùng.');}
       else{
-        editConflict_(schedulingRevive_(tx.record),null);
+        if(tx.action!==PLAN.force)editConflict_(schedulingRevive_(tx.record),null);
         try{event=Calendar.Events.insert({...tx.resource,id:tx.newId,guestsCanModify:false,guestsCanInviteOthers:false},CONFIG.calendarId,{sendUpdates:'none',supportsAttachments:true});}
         catch(e){event=schedulingGet_(tx.newId);if(!event||event.status==='cancelled'||event.extendedProperties?.private?.schedulingOperation!==tx.id)throw e;}
       }
@@ -131,7 +143,8 @@ function schedulingRun_(sheet,row){
 function schedulingFinish_(ref,tx,event){
   const put=(k,v)=>editPut_(ref,k,v),ss=ref.sheet.getParent();
   const history=JSON.parse(String(ref.record[PLAN.history]||'[]'));
-  const wasHeld=tx.action===PLAN.hold;
+  const wasHeld=tx.action===PLAN.hold,forced=tx.action===PLAN.force;
+  const promotionNote=forced?'Đã xếp ngoại lệ từ Google Sheet: bỏ qua kiểm tra trùng lịch Lãnh đạo UBND tỉnh.'+(tx.reason?' Lý do: '+tx.reason:''):'Đã xếp lịch từ Google Sheet.';
   if(!ref.record[EDIT.original])put(EDIT.original,JSON.stringify(tx.before));
   // Refresh current input values from the pre-hold Calendar snapshot only if the user hasn't edited them meanwhile.
   if(JSON.stringify(schedulingInput_(ref.record))===JSON.stringify(tx.before)){
@@ -146,9 +159,9 @@ function schedulingFinish_(ref,tx,event){
     put(META[3],'Đã gỡ khỏi Calendar để chờ xếp lại. '+tx.reason);
     put(PLAN.result,'THÀNH CÔNG: đã đưa về chờ và giải phóng khung giờ. Có thể đẩy lịch ưu tiên lên.');
   }else{
-    put(PLAN.state,'ĐÃ XẾP');put(META[2],event.id);put(META[1],'ĐÃ LÊN LỊCH');put(META[3],'Đã xếp lịch từ Google Sheet.');
-    const snap=reverseSnapshot_(event),mirror={'Trạng thái Calendar':'ĐÃ LÊN LỊCH','Nội dung trên Calendar':snap.data.title,'Bắt đầu trên Calendar':snap.start,'Kết thúc trên Calendar':snap.end,'Địa điểm trên Calendar':snap.data.place,'Thành phần trên Calendar':snap.data.people,'Calendar cập nhật lúc':snap.updated,'Lần kiểm tra Calendar':new Date(),'Link Calendar':snap.link,'Dấu đồng bộ Calendar':snap.hash,'Ghi chú đồng bộ ngược':'Đã xếp lịch từ Google Sheet.'};Object.entries(mirror).forEach(([k,v])=>put(k,v));
-    put(PLAN.result,'THÀNH CÔNG: đã đẩy lên Calendar và cập nhật trạng thái.');
+    put(PLAN.state,'ĐÃ XẾP');put(META[2],event.id);put(META[1],'ĐÃ LÊN LỊCH');put(META[3],promotionNote);
+    const snap=reverseSnapshot_(event),mirror={'Trạng thái Calendar':'ĐÃ LÊN LỊCH','Nội dung trên Calendar':snap.data.title,'Bắt đầu trên Calendar':snap.start,'Kết thúc trên Calendar':snap.end,'Địa điểm trên Calendar':snap.data.place,'Thành phần trên Calendar':snap.data.people,'Calendar cập nhật lúc':snap.updated,'Lần kiểm tra Calendar':new Date(),'Link Calendar':snap.link,'Dấu đồng bộ Calendar':snap.hash,'Ghi chú đồng bộ ngược':promotionNote};Object.entries(mirror).forEach(([k,v])=>put(k,v));
+    put(PLAN.result,forced?'THÀNH CÔNG — XẾP NGOẠI LỆ: đã đẩy lên Calendar, bỏ qua kiểm tra trùng lịch; giữ nguyên các lịch đang có.':'THÀNH CÔNG: đã đẩy lên Calendar và cập nhật trạng thái.');
   }
   put(PLAN.at,new Date(tx.at));put(EDIT.last,tx.id);put(EDIT.at,new Date(tx.at));
   const log=ss.getSheetByName(PLAN.log)||ss.insertSheet(PLAN.log),headers=['Mã thao tác','Thời điểm','Mã đăng ký','Tab đăng ký','Thao tác','Lý do','Event ID trước','Event ID sau','Dữ liệu trước (JSON)','Dữ liệu xếp lịch (JSON)'];reverseHeaders_(log,headers);
