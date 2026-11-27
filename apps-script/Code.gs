@@ -155,7 +155,7 @@ function processRow_(sheet,row){
       const endEstimated=String(record['Cách xác định giờ kết thúc']||'').startsWith('Mặc định hết buổi');
       if(endEstimated)peopleProperties.endEstimated='true';
       const description=[...['province','office','specialists'].map(k=>Q[k]+': '+String(record[Q[k]]||'')),record[Q.unit]?Q.unit+': '+record[Q.unit]:'','Người đăng ký: '+(record['Người đăng ký']||record[Q.contact]),v.docs?'Tài liệu: '+v.docs:'','Mã đăng ký: '+id].join('\n');
-      const resource={id,summary:String(record[Q.title]),location:String(record[Q.place]),description:description+(endEstimated?'\nGiờ kết thúc mặc định hết buổi: '+Utilities.formatDate(v.end,'Asia/Ho_Chi_Minh','HH:mm')+'.':''),
+      const resource={id,...colorFields_(record),summary:String(record[Q.title]),location:String(record[Q.place]),description:description+(endEstimated?'\nGiờ kết thúc mặc định hết buổi: '+Utilities.formatDate(v.end,'Asia/Ho_Chi_Minh','HH:mm')+'.':''),
         start:{dateTime:v.start.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},end:{dateTime:v.end.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},
         guestsCanModify:false,guestsCanInviteOthers:false,visibility:'default',extendedProperties:{private:peopleProperties}};
       let event;
@@ -166,4 +166,81 @@ function processRow_(sheet,row){
       put(META[1],'ĐÃ LÊN LỊCH');put(META[2],event.id);put(META[3],'');
     }catch(e){put(META[1],'LỖI ĐỒNG BỘ');put(META[3],String(e).slice(0,800));throw e;}
   }finally{lock.releaseLock();}
+}
+
+/* Participant color rules. Names stay in private CONFIG / Script Properties.
+   One event color: chair > multiple deputies > one deputy > office > specialists.
+   Description group lines override old metadata, including explicitly empty lines. */
+const COLOR_STYLE = {
+  '11':{hex:'#d50000',name:'Đỏ'}, '3':{hex:'#8e24aa',name:'Tím'},
+  '9':{hex:'#3f51b5',name:'Xanh dương'}, '5':{hex:'#f6bf26',name:'Vàng'},
+  '6':{hex:'#f4511e',name:'Cam'}, '7':{hex:'#039be5',name:'Xanh da trời'},
+  '1':{hex:'#7986cb',name:'Xanh oải hương'}, '10':{hex:'#0b8043',name:'Xanh lá'},
+  '8':{hex:'#616161',name:'Xám'}
+};
+let colorMapMemo_=null;
+function colorRole_(name){
+  const s=String(name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase().trim();
+  return /^chu tich\b/.test(s)?'chair':/^pho chu tich\b/.test(s)?'deputy':null;
+}
+function colorDeputies_(){
+  if(colorMapMemo_)return colorMapMemo_;
+  const p=PropertiesService.getScriptProperties(),stored=JSON.parse(p.getProperty('PARTICIPANT_COLOR_MAP')||'{}');
+  const palette=['9','5','6','7','1'],map={...stored};
+  CONFIG.province.filter(n=>colorRole_(n)==='deputy').forEach(n=>{
+    if(!palette.includes(map[n])){const free=palette.find(c=>!Object.values(map).includes(c));if(free)map[n]=free;}
+  });
+  return colorMapMemo_=map;
+}
+function colorChoice_(people){
+  if(!people)return null;
+  const province=[...new Set(people.province||[])];
+  // Known chair always takes priority; never guess a lower rank for unknown provincial names.
+  if(province.some(n=>CONFIG.province.includes(n)&&colorRole_(n)==='chair'))return {id:'11',label:'Có Chủ tịch UBND tỉnh'};
+  if(province.some(n=>!CONFIG.province.includes(n)||colorRole_(n)!=='deputy'))return null;
+  if(province.length>=2)return {id:'3',label:'Phối hợp từ hai Phó Chủ tịch UBND tỉnh'};
+  if(province.length===1){const id=colorDeputies_()[province[0]];return id?{id,label:province[0]}:null;}
+  if((people.office||[]).length){return people.office.every(n=>CONFIG.office.includes(n))?{id:'10',label:'Lãnh đạo Văn phòng UBND tỉnh'}:null;}
+  if((people.specialists||[]).length&&people.specialists.every(n=>CONFIG.specialists.includes(n)))return {id:'8',label:'Chuyên viên'};
+  return null;
+}
+function colorFields_(record){
+  const choice=colorChoice_(Object.fromEntries(['province','office','specialists'].map(k=>[k,parsePeople_(record[Q[k]])])));
+  return choice?{colorId:choice.id}:{};
+}
+function colorParticipants_(event){
+  const lines=String(event.description||'').split(/\r?\n/);let metadata=null,known=false;
+  try{metadata=decodePeople_(event.extendedProperties&&event.extendedProperties.private);}catch(ignore){}
+  const people={};['province','office','specialists'].forEach(k=>{
+    const line=lines.find(s=>s.trim().startsWith(Q[k]+':'));
+    if(line!==undefined){people[k]=parsePeople_(line.trim().slice(Q[k].length+1));known=true;}
+    else people[k]=Array.isArray(metadata)?metadata.filter(n=>n.startsWith(k+':')).map(n=>n.slice(k.length+1)):[];
+  });
+  return known||Array.isArray(metadata)?people:null;
+}
+function colorEvent_(event){return event.status==='cancelled'?null:colorChoice_(colorParticipants_(event));}
+function colorLegend_(){
+  const items=[{id:'11',label:'Có Chủ tịch UBND tỉnh'},...CONFIG.province.filter(n=>colorRole_(n)==='deputy').map(n=>({id:colorDeputies_()[n],label:n})),{id:'3',label:'Từ hai Phó Chủ tịch (không có Chủ tịch)'},{id:'10',label:'Chỉ lãnh đạo Văn phòng và chuyên viên'},{id:'8',label:'Chỉ chuyên viên'}];
+  return items.filter(x=>COLOR_STYLE[x.id]).map(x=>({...x,...COLOR_STYLE[x.id]}));
+}
+function colorApply_(event,budget){
+  const choice=colorEvent_(event);
+  if(!choice){if(event.status!=='cancelled')budget.unclassified++;return event;}
+  if(String(event.colorId||'')===choice.id){budget.matched++;return event;}
+  if(!event.etag)throw Error('Chưa có phiên bản sự kiện để cập nhật màu an toàn.');
+  if(budget.changed>=100||Date.now()>budget.deadline)throw Error('Đang tô màu theo từng đợt; lượt kiểm tra kế tiếp sẽ tiếp tục.');
+  const updated=Calendar.Events.patch({colorId:choice.id},CONFIG.calendarId,event.id,{sendUpdates:'none'},{'If-Match':event.etag});
+  budget.changed++;return updated;
+}
+function enableParticipantColors_(){
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    const p=PropertiesService.getScriptProperties();colorMapMemo_=null;
+    p.setProperty('PARTICIPANT_COLOR_MAP',JSON.stringify(colorDeputies_()));
+    p.setProperty('PARTICIPANT_COLORS_ENABLED','1');
+    // Replay all existing events once, then reuse incremental five-minute polling.
+    p.setProperty('REVERSE_SYNC_TOKEN','');
+  }finally{lock.releaseLock();}
+  console.log(JSON.stringify({colors:colorLegend_()}));
+  return syncCalendarToSheet_();
 }
