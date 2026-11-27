@@ -130,3 +130,16 @@ Các tab đăng ký có thêm cột **Thao tác xếp lịch**, **Lý do điều
 Lệnh chạy qua trigger sửa ô (thường vài giây); lượt kiểm tra 5 phút xử lý dự phòng khi trigger chậm hoặc kết nối lỗi. Trigger `sheetSchedulingOnEdit_` được cài một lần bởi lượt đồng bộ nền. Script/API ghi ô không kích hoạt onEdit, nên những yêu cầu nhập bằng API được lượt nền xử lý. Thao tác thành công tự xóa lựa chọn, để chọn lại lần sau. Nhật ký ở tab **Nhật ký xếp lịch**. Một giao dịch được lưu trước khi đổi Calendar, có kiểm tra phiên bản, phục hồi sau lỗi và không tạo trùng. Lịch bị quản trị đưa về chờ không thể tự đẩy lại bằng mã chỉnh sửa web. Lịch có khách mời, hội nghị trực tuyến, lặp lại hoặc cả ngày yêu cầu quản trị xử lý trực tiếp để tránh ảnh hưởng lời mời. Không tự chọn lịch nào nhường chỗ thay người quản trị.
 
 Kiểm tra luồng nhường chỗ/ưu tiên/xếp lại và lỗi giữa chừng: `node tests/scheduling.cjs`.
+
+## Bảng lịch công tác tuần từ Calendar
+
+`WeeklyReport.gs` tạo tab **Lịch công tác tuần** trong workbook hiện có. Chạy qua trigger `syncCalendarToSheet_` mỗi 5 phút, sau khi nhả khóa đăng ký; không thêm trigger và không cần triển khai lại web. Mọi hàm quản trị đều riêng tư (đuôi `_`).
+
+- Ô **C3** chọn một ngày trong tuần cần xem; bảng tự tính thứ hai–chủ nhật. Tuần ban đầu 30/11–06/12/2026 theo mẫu cung cấp. Không tự chuyển tuần; đổi C3 để chọn tuần khác.
+- Cột Thời gian, Nội dung, Địa điểm, LĐVP + Chuyên viên; chia sáng/chiều/tối, giờ 24h. Lịch song song nằm ở các dòng riêng. Lịch kéo dài nhiều buổi/ngày được hiện ở các phần tương ứng. Lịch cả ngày dùng đúng ngày kết thúc loại trừ của Calendar.
+- Đọc tất cả sự kiện trong Calendar chung ở tuần đã chọn, kể cả sự kiện tạo trực tiếp và từng lần của lịch lặp. Lịch hủy bị loại khỏi bảng; lịch chưa lên Calendar không xuất hiện.
+- Tên lãnh đạo lấy từ mô tả có nhãn hoặc metadata đăng ký. Hỗ trợ nhãn LĐVP/CV khi nhập tay; không suy đoán thành phần còn thiếu. Lịch có LĐVP và không có lãnh đạo tỉnh được tách xuống phần lịch riêng Văn phòng khi thông tin đủ rõ.
+- Dòng 4 ghi lần cập nhật và số sự kiện (không phải số dòng, vì một sự kiện có thể chiếm nhiều buổi). Ghi chú ô Nội dung chứa ID và liên kết Calendar.
+- Calendar là nguồn chính. Chỉnh sửa lịch trên Calendar; các ô nội dung báo cáo là đầu ra tự sinh. Chỉ ô C3 là điều khiển tuần. Không ghi ngược từ báo cáo lên Calendar hoặc vào đăng ký gốc.
+- Có phân trang, giới hạn thời gian, chống chạy đồng thời, kiểm tra ngày chọn trước khi ghi và chỉ dựng lại nội dung khi dữ liệu đổi. Lỗi đọc Calendar giữ bản đã tải trước đó và hiện cảnh báo cùng mốc thành công gần nhất.
+- Kiểm thử: `node tests/weekly-report.cjs` và `node tests/reverse-sync.cjs`.
