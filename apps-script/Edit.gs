@@ -2,7 +2,7 @@
    Calendar conditional writes + a durable Sheet journal protect retries and concurrent edits. */
 const EDIT={code:'Mã chỉnh sửa (giữ riêng)',original:'Đăng ký ban đầu (JSON)',pending:'Giao dịch chỉnh sửa',last:'Thao tác chỉnh sửa cuối',at:'Chỉnh sửa gần nhất',log:'Nhật ký chỉnh sửa'};
 function editHash_(value){return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,value).map(b=>('0'+((b+256)%256).toString(16)).slice(-2)).join('');}
-function editHeaders_(sheet){return reverseHeaders_(sheet,['Người đăng ký','Loại thời gian','Gợi ý thời gian','Cách xác định giờ kết thúc',...Object.values(EDIT).filter(x=>x!==EDIT.log)]);}
+function editHeaders_(sheet){return reverseHeaders_(sheet,[...Object.values(SPECIALIST_ROLES),'Người đăng ký','Loại thời gian','Gợi ý thời gian','Cách xác định giờ kết thúc',...Object.values(EDIT).filter(x=>x!==EDIT.log)]);}
 function editRead_(sheet,row){const h=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0],v=sheet.getRange(row,1,1,h.length).getValues()[0];return {sheet,row,h,record:Object.fromEntries(h.map((n,i)=>[n,v[i]]))};}
 function editPut_(ref,name,value){ref.sheet.getRange(ref.row,ref.h.indexOf(name)+1).setValue(value instanceof Date?value:safe_(value));ref.record[name]=value;}
 function ensureEditCode_(sheet,row){
@@ -49,18 +49,21 @@ function editData_(record,event){
   const fmt=d=>d?Utilities.formatDate(new Date(d),'Asia/Ho_Chi_Minh',"yyyy-MM-dd'T'HH:mm"):'',data={};
   const lines=String(event?.description||'').split(/\r?\n/),lineValue=label=>{const line=lines.find(l=>l.startsWith(label+':'));return line===undefined?undefined:line.slice(label.length+1).trim();};
   ['province','office','specialists'].forEach(k=>{const line=lineValue(Q[k]);data[k]=parsePeople_(line===undefined?reverseText_(record[Q[k]]):line);if(data[k].some(n=>!CONFIG[k].includes(n)))throw Error('Thành phần trên lịch đã thay đổi ngoài danh sách. Liên hệ bộ phận tổng hợp để cập nhật.');});
+  Object.assign(data,specialistRoles_(record,event,data.specialists));
+  data.specialists=[...data.specialistLead,...data.specialistSupport];
   data.title=event?String(event.summary||''):reverseText_(record[Q.title]);data.place=event?String(event.location||''):reverseText_(record[Q.place]);
   data.name=lineValue('Người đăng ký')??reverseText_(record['Người đăng ký']||record[Q.contact]);data.docs=lineValue('Tài liệu')??reverseText_(record[Q.docs]);
   data.start=fmt(event?event.start.dateTime:record[Q.start]);data.end=fmt(event?event.end.dateTime:record[Q.end]);
   if(data.start&&data.end&&data.start.slice(0,10)!==data.end.slice(0,10))throw Error('Lịch kéo dài qua nhiều ngày cần được bộ phận tổng hợp chỉnh sửa trên Calendar.');
   data.mode=event||data.start?'fixed':'flexible';data.timeNote=reverseText_(record['Gợi ý thời gian']);data.website='';return data;
 }
-function editRevision_(ref,event){return editHash_(JSON.stringify([Object.values(Q).map(k=>ref.record[k]),ref.record['Người đăng ký'],ref.record['Loại thời gian'],ref.record['Gợi ý thời gian'],ref.record[EDIT.last],event?.etag||'']));}
+function editRevision_(ref,event){return editHash_(JSON.stringify([[...Object.values(Q),...Object.values(SPECIALIST_ROLES)].map(k=>ref.record[k]),ref.record['Người đăng ký'],ref.record['Loại thời gian'],ref.record['Gợi ý thời gian'],ref.record[EDIT.last],event?.etag||'']));}
 function editResource_(ref,record,event,operation){
   const v=validate_(record),id=String(ref.record[META[0]]),old=event?.extendedProperties?.private||{},props={...old,...encodePeople_(v.people),editOperation:operation,endEstimated:String(record['Cách xác định giờ kết thúc']==='Mặc định hết buổi')};
   // Remove obsolete chunk values when the number of participants shrinks.
   Object.keys(old).filter(k=>k==='people'||/^people\d+$/.test(k)&&Number(k.slice(6))>=Number(props.peopleChunks)).forEach(k=>props[k]=null);
   const replacement=Object.fromEntries(['province','office','specialists'].map(k=>[Q[k],String(record[Q[k]])]));
+  Object.assign(replacement,specialistRoleFields_(record));
   replacement['Người đăng ký']=record['Người đăng ký'];replacement['Tài liệu']=v.docs;replacement['Mã đăng ký']=id;
   const kept=String(event?.description||'').split(/\r?\n/).filter(line=>!Object.keys(replacement).some(k=>line.startsWith(k+':'))&&!line.startsWith('Giờ kết thúc mặc định hết buổi:'));
   let description=[...Object.entries(replacement).filter(([k,x])=>x||k!=='Tài liệu').map(([k,x])=>k+': '+x),...kept.filter(Boolean)].join('\n');
@@ -76,6 +79,7 @@ function editConflict_(record,exclude){
   }while(pageToken);
 }
 function editFinish_(ref,tx,event){
+  editHeaders_(ref.sheet);ref=editRead_(ref.sheet,ref.row);
   const record=webRecord_(tx.data),ss=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'));
   if(!ref.record[EDIT.original])editPut_(ref,EDIT.original,JSON.stringify(tx.original||tx.before));
   const entries={...record,[META[1]]:event?'ĐÃ LÊN LỊCH':'CHỜ XẾP NGÀY',[META[2]]:event?event.id:'',[META[3]]:'Đã chỉnh sửa từ website.'};
@@ -110,9 +114,9 @@ function scheduleUpdate(token,code,revision,operation,data){
     if(event&&data.mode==='flexible')throw Error('Lịch đã lên Calendar phải giữ ngày giờ cụ thể. Liên hệ bộ phận tổng hợp nếu cần hủy lịch.');
     const before=editData_(ref.record,event);
     const next=validate_(record);
-    const sameSlot=event&&+next.start===+new Date(event.start.dateTime)&&+next.end===+new Date(event.end.dateTime)&&['province','office','specialists'].every(k=>JSON.stringify([...data[k]].sort())===JSON.stringify([...before[k]].sort()));
+    const sameSlot=event&&+next.start===+new Date(event.start.dateTime)&&+next.end===+new Date(event.end.dateTime)&&['province','office','specialists'].every(k=>JSON.stringify(parsePeople_(record[Q[k]]).sort())===JSON.stringify([...before[k]].sort()));
     if(!sameSlot)editConflict_(record,event?.id);
-    const original=Object.fromEntries([...Object.values(Q),'Người đăng ký','Loại thời gian','Gợi ý thời gian'].map(k=>[k,ref.record[k]||'']));
+    const original=Object.fromEntries([...Object.values(Q),...Object.values(SPECIALIST_ROLES),'Người đăng ký','Loại thời gian','Gợi ý thời gian'].map(k=>[k,ref.record[k]||'']));
     const tx={operation,data,before,original,at:new Date().toISOString()};
     editPut_(ref,EDIT.pending,JSON.stringify(tx));SpreadsheetApp.flush();
     let updated=null;
