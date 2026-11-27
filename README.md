@@ -4,7 +4,7 @@ Website đang hoạt động: **https://linhpmvpub.github.io/CalendarInput/**
 
 Người dùng nhập và gửi ngay trên website, không cần Gmail hoặc đăng nhập và không chuyển sang Google Form. Form có ba nhóm chọn nhiều người, tìm tên không dấu, địa điểm, nội dung, tên người đăng ký và link tài liệu. Phần người đăng ký chỉ có họ tên; không yêu cầu đơn vị hoặc thông tin liên hệ. Có thể chọn ngày giờ cụ thể hoặc **Chưa cố định ngày**. Kết quả xử lý hiển thị ngay trên trang.
 
-Giao diện có bảng **Lịch & khung giờ trống**, cập nhật từ Calendar chung và lọc theo người đã chọn. Bảng lịch có danh sách từng cuộc họp trong ngày và lãnh đạo UBND tỉnh tham dự, kể cả các cuộc họp trùng giờ. Lịch nhập tay chưa có thành phần rõ ràng được ghi “Chưa cập nhật thành phần lãnh đạo”. Chọn ngày, thời lượng 30/60/90/120 phút rồi bấm **Chọn giờ** để điền thời gian vào form. Trên điện thoại chuyển giữa hai tab Đăng ký và Xem lịch & giờ trống. Khung gợi ý là 07:00–18:00; người dùng vẫn có thể nhập giờ khác vào form.
+Giao diện có bảng **Lịch & khung giờ trống**, cập nhật từ Calendar chung và lọc theo Lãnh đạo UBND tỉnh đã chọn. Bảng lịch có danh sách từng cuộc họp trong ngày và lãnh đạo UBND tỉnh tham dự, kể cả các cuộc họp trùng giờ. Lịch nhập tay chưa có thành phần rõ ràng được ghi “Chưa cập nhật thành phần lãnh đạo”. Chọn ngày, thời lượng 30/60/90/120 phút rồi bấm **Chọn giờ** để điền thời gian vào form. Trên điện thoại chuyển giữa hai tab Đăng ký và Xem lịch & giờ trống. Khung gợi ý là 07:00–18:00; người dùng vẫn có thể nhập giờ khác vào form.
 
 ## Luồng đang vận hành
 
@@ -64,8 +64,8 @@ Cài đặt: thêm `ReverseSync.gs`, giữ CONFIG và SHEET_ID hiện có; chạ
 - Chưa cố định ngày: không yêu cầu ngày giờ, có ô gợi ý thời gian không bắt buộc; không chiếm khung giờ Calendar.
 - Khi có ngày cụ thể: nhập Ngày, Giờ bắt đầu và Giờ kết thúc (nếu có); thứ hiển thị tự động bằng tiếng Việt. Giờ kết thúc nhập phải sau giờ bắt đầu trong cùng ngày. Để trống giờ kết thúc: bắt đầu trước 11h30 mặc định kết thúc 11h30; bắt đầu từ 11h30 đến trước 17h30 mặc định kết thúc 17h30; từ 17h30 trở đi phải nhập giờ kết thúc. Ghi rõ mặc định hết buổi trong Sheet/Calendar/tra cứu. Quản trị có thể điều chỉnh trên Calendar khi đã chốt; thời gian theo Asia/Ho_Chi_Minh (UTC+7).
 - Nội dung tối đa 5.000 ký tự. Link tài liệu phải dùng HTTPS. Link không tự cấp quyền xem tài liệu.
-- Trùng người trong Calendar chung: giữ đăng ký chờ xử lý.
-- Lịch nhập thủ công chưa có mã thành phần: tạm giữ mọi đăng ký giao nhau để quản trị kiểm tra. Sự kiện free/transparent không chặn.
+- Chỉ trùng Chủ tịch hoặc các Phó Chủ tịch UBND tỉnh trong Calendar chung mới giữ đăng ký chờ xử lý. Trùng Lãnh đạo Văn phòng hoặc chuyên viên không chặn đăng ký, chỉnh sửa hay đẩy lịch chờ lên Calendar.
+- Lịch nhập thủ công chưa xác định thành phần: chỉ tạm giữ đăng ký giao nhau có chọn Lãnh đạo UBND tỉnh để quản trị kiểm tra. Đăng ký chỉ có Lãnh đạo Văn phòng/chuyên viên không kiểm tra xung đột. Sự kiện free/transparent không chặn.
 - Không kiểm tra lịch cá nhân hoặc phòng họp. Không có phân hạng ưu tiên hay màn hình duyệt riêng.
 - Một sự kiện chung chứa thành phần trong mô tả, không gửi thư mời và không tạo lịch riêng cho từng người.
 - ID cố định cho mỗi lần gửi và khóa xử lý hạn chế tạo trùng. Khi kết nối gián đoạn, bấm gửi lại trên cùng trang dùng lại mã cũ. Tải lại trang tạo phiên mới; không gửi lại một đăng ký đã thành công.
@@ -143,3 +143,9 @@ Kiểm tra luồng nhường chỗ/ưu tiên/xếp lại và lỗi giữa chừn
 - Calendar là nguồn chính. Chỉnh sửa lịch trên Calendar; các ô nội dung báo cáo là đầu ra tự sinh. Chỉ ô C3 là điều khiển tuần. Không ghi ngược từ báo cáo lên Calendar hoặc vào đăng ký gốc.
 - Có phân trang, giới hạn thời gian, chống chạy đồng thời, kiểm tra ngày chọn trước khi ghi và chỉ dựng lại nội dung khi dữ liệu đổi. Lỗi đọc Calendar giữ bản đã tải trước đó và hiện cảnh báo cùng mốc thành công gần nhất.
 - Kiểm thử: `node tests/weekly-report.cjs` và `node tests/reverse-sync.cjs`.
+
+### Phạm vi kiểm tra trùng lịch
+
+Đăng ký mới, sửa đăng ký và lệnh ĐẨY LÊN CALENDAR dùng chung `provinceConflict_`: chỉ đối chiếu nhóm `province`. Lãnh đạo Văn phòng và chuyên viên vẫn được lưu đầy đủ trong Sheet/Calendar nhưng không giữ khung giờ. Mô tả thành phần hiện tại trên Calendar ưu tiên hơn metadata cũ. Lịch chỉ có Văn phòng/chuyên viên không bị giữ lại kể cả khi giao nhau với lịch nhập tay chưa rõ thành phần.
+
+Tra cứu vẫn hiện nội dung lịch; `blocksTime` tách sự kiện hiển thị khỏi sự kiện chặn khung giờ. Khi chọn lãnh đạo tỉnh, lọc theo những lãnh đạo đó. Khi chỉ chọn Văn phòng/chuyên viên, hiển thị lịch chung để tham khảo và không chặn khung giờ. Khi chưa chọn ai, khung giờ chung phản ánh lịch lãnh đạo tỉnh. Không tự đẩy các đăng ký chờ cũ; quản trị dùng ĐẨY LÊN CALENDAR theo quy tắc mới.
