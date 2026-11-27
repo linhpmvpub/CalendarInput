@@ -8,7 +8,7 @@ function doGet() {
 function scheduleBootstrap() {
   const token=Utilities.getUuid()+Utilities.getUuid();
   CacheService.getScriptCache().put('web:'+token,JSON.stringify({created:Date.now(),count:0}),21600);
-  return {token,province:CONFIG.province,office:CONFIG.office,specialists:CONFIG.specialists,today:Utilities.formatDate(new Date(),'Asia/Ho_Chi_Minh','yyyy-MM-dd')};
+  return {token,colorLegend:colorLegend_(),province:CONFIG.province,office:CONFIG.office,specialists:CONFIG.specialists,today:Utilities.formatDate(new Date(),'Asia/Ho_Chi_Minh','yyyy-MM-dd')};
 }
 function webDate_(value) {
   if(typeof value!=='string'||!/^20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value))throw Error('Ngày giờ không hợp lệ.');
@@ -103,7 +103,7 @@ function scheduleAvailability(day,selection) {
     const result=Calendar.Events.list(CONFIG.calendarId,{timeMin:start.toISOString(),timeMax:end.toISOString(),singleEvents:true,showDeleted:false,maxResults:2500,timeZone:'Asia/Ho_Chi_Minh',...(pageToken?{pageToken}:{})});
     for(const e of result.items||[]){
       if(e.status==='cancelled'||e.transparency==='transparent')continue;
-      let others=null;try{others=decodePeople_(e.extendedProperties&&e.extendedProperties.private);}catch(ignore){}
+      const currentPeople=colorParticipants_(e),others=currentPeople?Object.entries(currentPeople).flatMap(([k,names])=>names.map(n=>k+':'+n)):null;
       if(people.length&&others&&!people.some(p=>others.includes(p)))continue;
       const a=e.start.dateTime?new Date(e.start.dateTime):webDate_(e.start.date+'T00:00');
       const b=e.end.dateTime?new Date(e.end.dateTime):webDate_(e.end.date+'T00:00');
@@ -115,7 +115,8 @@ function scheduleAvailability(day,selection) {
         const line=String(e.description||'').split(/\r?\n/).find(s=>s.startsWith(Q.province+':'));
         if(line){const names=parsePeople_(line.slice(Q.province.length+1));CONFIG.province.forEach(n=>{if(names.includes(n))province.push(n);});}
       }
-      busy.push({start:a.toISOString(),end:b.toISOString(),title:String(e.summary||'(Chưa có nội dung)').slice(0,5000),province,participantsKnown:Array.isArray(others)||province.length>0,endEstimated:props.endEstimated==='true',allDay:!e.start.dateTime});
+      const color=colorEvent_(e);
+      busy.push({color:color?{...color,...COLOR_STYLE[color.id]}:null,start:a.toISOString(),end:b.toISOString(),title:String(e.summary||'(Chưa có nội dung)').slice(0,5000),province,participantsKnown:Array.isArray(others)||province.length>0,endEstimated:props.endEstimated==='true',allDay:!e.start.dateTime});
     }
     pageToken=result.nextPageToken;pages++;
     if(pageToken&&pages>=4)throw Error('Lịch có quá nhiều sự kiện. Vui lòng liên hệ bộ phận tổng hợp.');
