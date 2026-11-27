@@ -84,7 +84,7 @@ function schedulingRun_(sheet,row){
         tx.event=event;tx.record=webRecord_(editData_(ref.record,event));tx.record[Q.unit]=ref.record[Q.unit]||'';
       }else{
         if(tx.oldId){const event=schedulingGet_(tx.oldId);if(event&&event.status!=='cancelled'){put(PLAN.result,'Lịch đã có trên Calendar. Không tạo thêm bản trùng.');put(PLAN.command,'');return;}throw Error('Sự kiện đã liên kết bị xóa hoặc mất quyền truy cập. Cần kiểm tra trước khi xếp lại.');}
-        const blockedWithoutEvent=!tx.oldId&&/Trùng thành phần hoặc khoảng thời gian/.test(String(ref.record[META[3]]||''));
+        const blockedWithoutEvent=!tx.oldId&&/Trùng thành phần hoặc khoảng thời gian|Trùng lịch Lãnh đạo UBND tỉnh/.test(String(ref.record[META[3]]||''));
         if(ref.record[PLAN.state]!=='ĐANG CHỜ'&&!/^CHỜ /.test(String(ref.record[META[1]]))&&!blockedWithoutEvent)throw Error('Chỉ đẩy lịch đang chờ lên Calendar.');
         const record=schedulingRecord_(schedulingInput_(ref.record));
         if(record[Q.start] instanceof Date)record['Loại thời gian']='Ngày giờ cụ thể';
