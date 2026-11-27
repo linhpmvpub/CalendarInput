@@ -149,3 +149,9 @@ Kiểm tra luồng nhường chỗ/ưu tiên/xếp lại và lỗi giữa chừn
 Đăng ký mới, sửa đăng ký và lệnh ĐẨY LÊN CALENDAR dùng chung `provinceConflict_`: chỉ đối chiếu nhóm `province`. Lãnh đạo Văn phòng và chuyên viên vẫn được lưu đầy đủ trong Sheet/Calendar nhưng không giữ khung giờ. Mô tả thành phần hiện tại trên Calendar ưu tiên hơn metadata cũ. Lịch chỉ có Văn phòng/chuyên viên không bị giữ lại kể cả khi giao nhau với lịch nhập tay chưa rõ thành phần.
 
 Tra cứu vẫn hiện nội dung lịch; `blocksTime` tách sự kiện hiển thị khỏi sự kiện chặn khung giờ. Khi chọn lãnh đạo tỉnh, lọc theo những lãnh đạo đó. Khi chỉ chọn Văn phòng/chuyên viên, hiển thị lịch chung để tham khảo và không chặn khung giờ. Khi chưa chọn ai, khung giờ chung phản ánh lịch lãnh đạo tỉnh. Không tự đẩy các đăng ký chờ cũ; quản trị dùng ĐẨY LÊN CALENDAR theo quy tắc mới.
+
+### Chuyên viên chủ trì và phối hợp
+
+Website tách chuyên viên thành hai phần: chủ trì tối đa một người (radio), phối hợp nhiều người (checkbox). Không chọn một người ở cả hai vai trò. Cả hai dùng danh sách chuyên viên hiện có. Nếu lịch không có chuyên viên, có thể để trống.
+
+Cột **Chuyên viên** vẫn dùng để tương thích và xuất lịch tuần: chủ trì trước, phối hợp sau, không lặp tên. Thêm hai cột riêng **Chuyên viên chủ trì**, **Chuyên viên phối hợp** để lưu vai trò khi đăng ký/sửa; mô tả Calendar lưu cả danh sách tổng và các vai trò. Lịch cũ không tự gán người đầu tiên làm chủ trì: khi mở sửa, giữ người cũ trong phần phối hợp để người dùng phân vai. Kiểm tra trùng vẫn chỉ áp dụng Lãnh đạo UBND tỉnh.
