@@ -6,7 +6,7 @@ const sheets=[],cache=new Map(),props=new Map([['SHEET_ID','test']]),events=new 
 const ss={getSheets:()=>sheets,getSheetByName:n=>sheets.find(s=>s.name===n),insertSheet:n=>{const s=new Sheet(n);sheets.push(s);return s;}};
 const cp=x=>JSON.parse(JSON.stringify(x));
 const api={get(cal,id){if(!events.has(id))throw Error('404 Not Found');return cp(events.get(id));},list(cal,args){return {items:[...events.values()].filter(e=>e.status!=='cancelled'&&(!args.timeMin||+new Date(e.end.dateTime)>+new Date(args.timeMin)&&+new Date(e.start.dateTime)<+new Date(args.timeMax))).map(cp),nextSyncToken:'cursor'};},insert(resource){insertCalls++;if(events.has(resource.id))throw Error('409 already exists');const event={...cp(resource),status:'confirmed',etag:'e'+(++etag),updated:new Date().toISOString()};events.set(event.id,event);return cp(event);},patch(resource,cal,id,opts,headers){patchCalls++;assert.equal(opts.sendUpdates,'none');const event=events.get(id);if(race){race=false;event.etag='e'+(++etag);event.summary='Edited elsewhere';}if(headers['If-Match']!==event.etag)throw Error('412 Precondition Failed');Object.assign(event,cp(resource),{etag:'e'+(++etag),updated:new Date().toISOString()});if(afterPatchError){afterPatchError=false;throw Error('Timeout after apply');}return cp(event);}};
-const context={assert,console,Date,Map,Set,JSON,Calendar:{Events:api},Utilities:{getUuid:()=>crypto.randomUUID(),DigestAlgorithm:{SHA_256:'sha256'},computeDigest:(a,s)=>[...crypto.createHash(a).update(s).digest()],newBlob:s=>({getBytes:()=>Buffer.from(s)}),formatDate:(d,tz,pattern)=>{const x=new Date(+d+7*3600000).toISOString();return pattern==='yyyy-MM-dd'?x.slice(0,10):pattern==='HH:mm'?x.slice(11,16):x.slice(0,16);}},SpreadsheetApp:{openById:()=>ss,flush(){}},CacheService:{getScriptCache:()=>({get:k=>cache.get(k),put:(k,v)=>cache.set(k,v)})},PropertiesService:{getScriptProperties:()=>({getProperty:k=>props.get(k),setProperty:(k,v)=>props.set(k,v)})},LockService:{getScriptLock:()=>({waitLock(){},tryLock:()=>true,releaseLock(){}})}};
+const context={assert,console,Date,Map,Set,JSON,Calendar:{Events:api},Utilities:{getUuid:()=>crypto.randomUUID(),DigestAlgorithm:{SHA_256:'sha256'},computeDigest:(a,s)=>[...crypto.createHash(a).update(s).digest()],newBlob:s=>({getBytes:()=>Buffer.from(s)}),formatDate:(d,tz,pattern)=>{const x=new Date(+d+7*3600000).toISOString();return pattern==='yyyy-MM-dd'?x.slice(0,10):pattern==='HH:mm'?x.slice(11,16):x.slice(0,16);}},SpreadsheetApp:{openById:()=>ss,flush(){}},CacheService:{getScriptCache:()=>({get:k=>cache.get(k),put:(k,v)=>cache.set(k,v),remove:k=>cache.delete(k)})},PropertiesService:{getScriptProperties:()=>({getProperty:k=>props.get(k),setProperty:(k,v)=>props.set(k,v)})},LockService:{getUserLock:()=>({waitLock(){},releaseLock(){}}),getScriptLock:()=>({waitLock(){},tryLock:()=>true,releaseLock(){}})}};
 vm.createContext(context);vm.runInContext(['Code','Web','ReverseSync','Edit'].map(f=>fs.readFileSync('apps-script/'+f+'.gs','utf8')).join('\n'),context);const run=s=>vm.runInContext(s,context);
 run("CONFIG.province=['Nguyễn A','Nguyễn B'];CONFIG.office=['Trần B'];CONFIG.specialists=['Lê C'];");
 const boot=context.scheduleBootstrap();cache.set('web:'+boot.token,JSON.stringify({created:Date.now()-5000,count:0}));const token=boot.token;
@@ -103,3 +103,36 @@ props.set('ADMIN_EDIT_SECRET',JSON.stringify({...secret,hash:'0'.repeat(64)}));a
 context.scheduleAdminLogout(token,ticket);assert.throws(()=>context.scheduleAdminList(token,ticket,{}),/hết hạn/);
 const attackToken=context.scheduleBootstrap().token;for(let i=0;i<5;i++)assert.throws(()=>context.scheduleAdminLogin(attackToken,'wrong'),/không đúng/);assert.throws(()=>context.scheduleAdminLogin(attackToken,adminPassword),/15 phút/);
 console.log('Admin tests passed: authentication, session binding/expiry/revocation, throttling, code isolation, audit/conflicts, held edits and recovery.');
+
+// Performance contract: one authenticated compact snapshot, zero Sheet/Calendar
+// reads for a warm list/search, and row hints always checked against the actual ID.
+const perfLogin=context.scheduleAdminLogin(token,adminPassword),perfTicket=perfLogin.ticket;
+assert.ok(perfLogin.index.items.length);assert.equal(perfLogin.index.items[0].row,undefined);
+let sheetReads=0,calendarReads=0,readRanges=[];
+const savedGetValues=Range.prototype.getValues,savedList=api.list,savedGet=api.get;
+Range.prototype.getValues=function(){sheetReads++;readRanges.push(this);return savedGetValues.call(this);};
+api.list=function(...a){calendarReads++;return savedList.apply(this,a);};api.get=function(...a){calendarReads++;return savedGet.apply(this,a);};
+context.adminInvalidate_();const cold=context.scheduleAdminSnapshot(token,perfTicket,false),coldReads=sheetReads;
+assert.ok(coldReads>0);assert.equal(calendarReads,0);
+const privateCols=['Mã chỉnh sửa (giữ riêng)','Đăng ký ban đầu (JSON)','Giao dịch chỉnh sửa','Giao dịch xếp lịch (JSON)'];
+for(const r of readRanges.filter(r=>r.r>1))for(const col of privateCols){const i=r.s.rows[0].indexOf(col);if(i>=0)assert.ok(i<r.c-1||i>=r.c-1+r.m,'List must not read '+col);}
+sheetReads=0;context.scheduleAdminSnapshot(token,perfTicket,false);context.scheduleAdminList(token,perfTicket,{scope:'all',query:'admin'});assert.equal(sheetReads,0);assert.equal(calendarReads,0);
+assert.throws(()=>context.scheduleAdminSnapshot(otherToken,perfTicket,false),/hết hạn/);assert.equal(sheetReads,0);
+// A row sort after caching cannot cause an edit of the wrong row.
+const oldRows=[...sheet.rows];[sheet.rows[1],sheet.rows[2]]=[sheet.rows[2],sheet.rows[1]];
+assert.equal(context.scheduleAdminLoad(token,perfTicket,first.id).id,first.id);sheet.rows=oldRows;
+// Saving invalidates other sessions' index and returns an immediate canonical UI summary.
+adminLoad=context.scheduleAdminLoad(token,perfTicket,first.id);const freshTitle='Admin index refreshed';
+const updatedIndex=context.scheduleAdminUpdate(token,perfTicket,first.id,adminLoad.revision,op(),{...adminLoad.data,title:freshTitle});assert.equal(updatedIndex.item.title,freshTitle);assert.equal(updatedIndex.item.row,undefined);
+assert.equal(context.adminIndexRead_(),null);assert.equal(context.scheduleAdminSnapshot(token,perfTicket,false).items.find(i=>i.id===first.id).title,freshTitle);
+// Evicted cache chunks rebuild safely; manual refresh sees direct Sheet changes.
+const manifest=JSON.parse(cache.get('admin-index:manifest'));cache.delete('admin-index:'+manifest.id+':0');assert.ok(context.scheduleAdminSnapshot(token,perfTicket,false).items.length);
+const heldTitleCol=sheet.rows[0].indexOf('Nội dung');sheet.rows[heldRow][heldTitleCol]='Direct Sheet edit';assert.equal(context.scheduleAdminSnapshot(token,perfTicket,true).items.find(i=>i.id===held.id).title,'Direct Sheet edit');
+Range.prototype.getValues=savedGetValues;api.list=savedList;api.get=savedGet;
+// Exercise the exact client filter, without a server or DOM dependency.
+const html=fs.readFileSync('apps-script/WebRegistration.html','utf8'),filterSource=html.slice(html.indexOf('function adminFilteredItems('),html.indexOf('function renderAdminList('));
+const client={};vm.createContext(client);vm.runInContext("const normalize=t=>t.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/đ/g,'d');\n"+filterSource,client);
+const fixture=[{id:'1',title:'Họp Đông Hà',province:'Nguyễn A',status:'ĐÃ LÊN LỊCH',sheet:'Web',start:'2026-12-01T08:00',end:'2026-12-01T09:00',scheduled:true},{id:'2',title:'Chờ bố trí',province:'Nguyễn B',status:'CHỜ XẾP LỊCH',sheet:'Web',scheduled:false},{id:'3',title:'Cũ',province:'Nguyễn A',status:'ĐÃ LÊN LỊCH',sheet:'Web',start:'2026-10-01T08:00',end:'2026-10-01T09:00',scheduled:true}];
+assert.deepEqual([...client.adminFilteredItems(fixture,'dong ha','all','2026-11-27')].map(i=>i.id),['1']);assert.deepEqual([...client.adminFilteredItems(fixture,'','waiting','2026-11-27')].map(i=>i.id),['2']);assert.equal(client.adminFilteredItems(fixture,'','current','2026-11-27').length,2);
+const handlers=html.slice(html.indexOf("$('admin-filter').onsubmit"),html.indexOf("$('admin-logout').onclick"));assert.ok(!handlers.includes('scheduleAdminList'));assert.match(handlers,/oninput=.*renderAdminList/);
+console.log('Fast admin tests passed: cold summary reads='+coldReads+', warm list/search=0 Sheet and 0 Calendar reads; authenticated cache, safe row hints, invalidation, refresh, and client search.');
