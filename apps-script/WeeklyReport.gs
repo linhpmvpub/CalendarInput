@@ -30,7 +30,7 @@ function weeklyFetch_(start,deadline){
 function weeklyEvent_(event){
   const start=reverseDate_(event.start),end=reverseDate_(event.end);
   if(!(start instanceof Date)||!(end instanceof Date)||+end<=+start)throw Error('Lịch có thời gian không hợp lệ: '+String(event.summary||event.id).slice(0,120));
-  const people=weeklyPeople_(event),title=weeklyPlain_(event.summary)||'(Chưa có nội dung)',provincialTitle=/\bPCT(?:TT)?\b|Chủ tịch|Phó Chủ tịch/i.test(title);
+  const people=weeklyPeople_(event),title=String(event.summary||'(Chưa có nội dung)'),provincialTitle=/\bPCT(?:TT)?\b|Chủ tịch|Phó Chủ tịch/i.test(title);
   // Unknown manual events stay in the main section; only explicit office-only events are separated.
   return {event,start,end,people,title,allDay:!!event.start.date,officeOnly:people.office.length>0&&!people.province.length&&!provincialTitle};
 }
@@ -52,9 +52,9 @@ function weeklyModel_(events,week){
         const groupStart=rows.length;
         if(!list.length)add(['',label,'—','','']);
         list.forEach((e,i)=>{
-          const time=e.allDay?'Cả ngày':Utilities.formatDate(new Date(Math.max(+e.start,from)),WR.tz,"HH'h'mm")+'–'+(+e.end>=to?'24h00':Utilities.formatDate(e.end,WR.tz,"HH'h'mm"));
-          const names=e.people.province,missingNames=names.length&&!names.every(n=>e.title.toLocaleLowerCase('vi').includes(n.toLocaleLowerCase('vi')));
-          const content=time+': '+e.title+(missingNames?'\nLãnh đạo UBND tỉnh: '+names.join(', '):'');
+          // Publish exactly the meeting title, prefixed only with its start time.
+          const time=e.allDay?'Cả ngày':Utilities.formatDate(e.start,WR.tz,"HH'h'mm");
+          const content=time+': '+e.title;
           const attendees=[e.people.office.length?'LĐVP: '+e.people.office.join(', '):'',e.people.specialists.length?'CV: '+e.people.specialists.join(', '):''].filter(Boolean).join('\n');
           const note='Nguồn: Google Calendar\nMã sự kiện: '+e.event.id+(e.event.htmlLink?'\n'+e.event.htmlLink:'')+'\n'+(e.allDay?'Lịch cả ngày':Utilities.formatDate(e.start,WR.tz,'dd/MM/yyyy HH:mm')+' → '+Utilities.formatDate(e.end,WR.tz,'dd/MM/yyyy HH:mm'));
           add(['',i?'':label,content,weeklyPlain_(e.event.location),attendees],['','',note,'',attendees?'Thành phần đọc từ mô tả/metadata của Calendar.':'Calendar chưa ghi rõ LĐVP/Chuyên viên; không tự suy đoán.']);
