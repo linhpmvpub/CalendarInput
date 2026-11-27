@@ -68,10 +68,10 @@ function editResource_(ref,record,event,operation){
   return {...colorFields_(record),summary:record[Q.title],location:record[Q.place],description,start:{dateTime:v.start.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},end:{dateTime:v.end.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},extendedProperties:{private:props}};
 }
 function editConflict_(record,exclude){
-  const v=validate_(record);if(v.flexible)return;let pageToken,pages=0;
+  const v=validate_(record);if(v.flexible||!v.people.some(n=>n.startsWith('province:')))return;let pageToken,pages=0;
   do{const result=Calendar.Events.list(CONFIG.calendarId,{timeMin:v.start.toISOString(),timeMax:v.end.toISOString(),singleEvents:true,showDeleted:false,maxResults:2500,...(pageToken?{pageToken}:{})});
-    for(const e of result.items||[]){if(e.id===exclude||e.status==='cancelled'||e.transparency==='transparent')continue;const names=reverseParticipants_(e).split('\n');let people=[];['province','office','specialists'].forEach(k=>{const line=names.find(l=>l.startsWith(Q[k]+':'));if(line)people.push(...parsePeople_(line.slice(Q[k].length+1)).map(n=>k+':'+n));});
-      if(!people.length||v.people.some(n=>people.includes(n)))throw Error('Thời gian mới bị trùng lịch. Thông tin cũ vẫn được giữ nguyên; vui lòng chọn khung khác.');}
+    for(const e of result.items||[]){if(e.id===exclude)continue;
+      if(provinceConflict_(v.people,e))throw Error('Thời gian mới bị trùng lịch Lãnh đạo UBND tỉnh hoặc có lịch nhập tay chưa rõ thành phần lãnh đạo tỉnh. Thông tin cũ vẫn được giữ nguyên; vui lòng chọn khung khác.');}
     pageToken=result.nextPageToken;if(pageToken&&++pages>=4)throw Error('Chưa kiểm tra đủ lịch. Vui lòng thử lại sau.');
   }while(pageToken);
 }
