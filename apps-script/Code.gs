@@ -126,10 +126,11 @@ function processRow_(sheet,row){
     const values=sheet.getRange(row,1,1,headers.length).getValues()[0];
     const record=Object.fromEntries(headers.map((k,i)=>[k,values[i]]));
     const put=(key,value)=>sheet.getRange(row,headers.indexOf(key)+1).setValue(safe_(value));
+    if(typeof schedulingGuard_==='function'){try{schedulingGuard_(record);}catch(e){put(META[3],String(e.message||e));return;}}
     let id=String(record[META[0]]||'');
     if(!id){id=Utilities.getUuid().replace(/-/g,'');put(META[0],id);SpreadsheetApp.flush();}
     try{
-      const existing=calendarGet_(id);
+      const existing=calendarGet_(String(record[META[2]]||id));
       if(existing){
         if(existing.status==='cancelled'){put(META[1],'ĐÃ HỦY TRÊN CALENDAR');return;}
         put(META[1],'ĐÃ LÊN LỊCH');put(META[2],existing.id);put(META[3],'');return;
