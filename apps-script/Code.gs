@@ -169,7 +169,8 @@ function processRow_(sheet,row){
   }finally{lock.releaseLock();}
 }
 
-/* Participant color rules. Names stay in private CONFIG / Script Properties.
+/* Retired participant colors: legacy mapping is retained only for one-time removal.
+   Names stay in private CONFIG / Script Properties.
    One event color: chair > multiple deputies > one deputy > office > specialists.
    Description group lines override old metadata, including explicitly empty lines. */
 const COLOR_STYLE = {
@@ -205,10 +206,7 @@ function colorChoice_(people){
   if((people.specialists||[]).length&&people.specialists.every(n=>CONFIG.specialists.includes(n)))return {id:'8',label:'Chuyên viên'};
   return null;
 }
-function colorFields_(record){
-  const choice=colorChoice_(Object.fromEntries(['province','office','specialists'].map(k=>[k,parsePeople_(record[Q[k]])])));
-  return choice?{colorId:choice.id}:{};
-}
+function colorFields_(record){return {};}
 function colorParticipants_(event){
   const lines=String(event.description||'').split(/\r?\n/);let metadata=null,known=false;
   try{metadata=decodePeople_(event.extendedProperties&&event.extendedProperties.private);}catch(ignore){}
@@ -219,29 +217,14 @@ function colorParticipants_(event){
   });
   return known||Array.isArray(metadata)?people:null;
 }
-function colorEvent_(event){return event.status==='cancelled'?null:colorChoice_(colorParticipants_(event));}
-function colorLegend_(){
-  const items=[{id:'11',label:'Có Chủ tịch UBND tỉnh'},...CONFIG.province.filter(n=>colorRole_(n)==='deputy').map(n=>({id:colorDeputies_()[n],label:n})),{id:'3',label:'Từ hai Phó Chủ tịch (không có Chủ tịch)'},{id:'10',label:'Chỉ lãnh đạo Văn phòng và chuyên viên'},{id:'8',label:'Chỉ chuyên viên'}];
-  return items.filter(x=>COLOR_STYLE[x.id]).map(x=>({...x,...COLOR_STYLE[x.id]}));
-}
+function colorEvent_(event){return null;}
+function colorLegend_(){return [];}
 function colorApply_(event,budget){
-  const choice=colorEvent_(event);
+  const choice=event.status==='cancelled'?null:colorChoice_(colorParticipants_(event));
   if(!choice){if(event.status!=='cancelled')budget.unclassified++;return event;}
-  if(String(event.colorId||'')===choice.id){budget.matched++;return event;}
+  if(String(event.colorId||'')!==choice.id){budget.matched++;return event;}
   if(!event.etag)throw Error('Chưa có phiên bản sự kiện để cập nhật màu an toàn.');
-  if(budget.changed>=100||Date.now()>budget.deadline)throw Error('Đang tô màu theo từng đợt; lượt kiểm tra kế tiếp sẽ tiếp tục.');
-  const updated=Calendar.Events.patch({colorId:choice.id},CONFIG.calendarId,event.id,{sendUpdates:'none'},{'If-Match':event.etag});
+  if(budget.changed>=100||Date.now()>budget.deadline)throw Error('Đang bỏ màu tự động theo từng đợt; lượt kiểm tra kế tiếp sẽ tiếp tục.');
+  const updated=Calendar.Events.patch({colorId:null},CONFIG.calendarId,event.id,{sendUpdates:'none'},{'If-Match':event.etag});
   budget.changed++;return updated;
-}
-function enableParticipantColors_(){
-  const lock=LockService.getScriptLock();lock.waitLock(30000);
-  try{
-    const p=PropertiesService.getScriptProperties();colorMapMemo_=null;
-    p.setProperty('PARTICIPANT_COLOR_MAP',JSON.stringify(colorDeputies_()));
-    p.setProperty('PARTICIPANT_COLORS_ENABLED','1');
-    // Replay all existing events once, then reuse incremental five-minute polling.
-    p.setProperty('REVERSE_SYNC_TOKEN','');
-  }finally{lock.releaseLock();}
-  console.log(JSON.stringify({colors:colorLegend_()}));
-  return syncCalendarToSheet_();
 }
