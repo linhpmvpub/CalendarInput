@@ -161,6 +161,7 @@ function syncCalendarToSheet_(){
     });
     if(logs.length){const log=ss.getSheetByName(RS.log)||ss.insertSheet(RS.log);reverseHeaders_(log,RS.logColumns);log.getRange(log.getLastRow()+1,1,logs.length,RS.logColumns.length).setValues(logs.map(r=>r.map(reverseCell_)));log.getRange(2,1,log.getLastRow()-1,1).setNumberFormat('dd/MM/yyyy HH:mm:ss');}
     SpreadsheetApp.flush();
+    if(typeof adminInvalidate_==='function')adminInvalidate_();
     // Commit cursor only after all Sheet writes succeed. A failed poll is replayed.
     if(colorBackfill)p.setProperty('PARTICIPANT_COLORS_REMOVED','1');
     p.setProperty(RS.token,result.nextToken);p.setProperty(RS.calendar,CONFIG.calendarId);p.setProperty('REVERSE_SYNC_LAST_OK',new Date().toISOString());
