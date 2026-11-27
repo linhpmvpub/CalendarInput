@@ -82,7 +82,38 @@ const details=scheduleAvailability('2026-12-01',{province:[],office:[],specialis
 assert.equal(details.busy[0].endEstimated,true);
 assert.deepEqual(details.busy[1].province,['Nguyễn A']);
 assert.throws(()=>scheduleAvailability('2026-12-01',{province:['Unknown'],office:[],specialists:[]}));
+// Full overview includes free events without reserving their time, and excludes cancelled events.
+Calendar.Events.list=()=>({items:[...entries,{...entries[0],status:'cancelled',summary:'Cancelled'}]});
+const overview=scheduleOverview('2026-12-01');
+assert.equal(overview.busy.length,4);
+assert.ok(overview.busy.some(e=>e.transparent&&e.blocksTime===false));
+assert.ok(!overview.busy.some(e=>e.title==='Cancelled'));
+assert.ok(!JSON.stringify(overview).includes('private@example.test'));
+assert.ok(!JSON.stringify(overview).includes('Thông tin liên hệ không công khai'));
+assert.ok(!JSON.stringify(overview).includes('attendees'));
+assert.throws(()=>scheduleOverview('2026-02-30'));
 Calendar.Events.list=()=>{throw Error('API unavailable');};
 assert.throws(()=>scheduleAvailability('2026-12-01',{province:[],office:[],specialists:[]}));
 `,context);
 console.log('Web API checks passed: optional end, morning/afternoon end defaults, meeting details, leader metadata, filtering, pagination, retries and privacy');
+
+// Pure overview rendering rules: leader filter, unknown attendees, overlapping events and day boundaries.
+const html=fs.readFileSync(__dirname+'/../apps-script/WebRegistration.html','utf8');
+const script=html.split('<script>')[1].split('</script>')[0];new vm.Script(script);
+const helpers=script.split('/* Weekly overview helpers */')[1].split('/* End weekly overview helpers */')[0];
+const seg=script.split('\n').find(l=>l.startsWith('function segments('));
+const ui={Date,Intl};vm.createContext(ui);
+vm.runInContext(`const dayDate=d=>new Date(d+'T00:00:00+07:00');const vnDay=d=>new Date(+d+7*3600000).toISOString().slice(0,10);const clock=d=>new Date(+d+7*3600000).toISOString().slice(11,16);const addDays=(d,n)=>vnDay(new Date(+dayDate(d)+n*86400000));`+helpers+'\n'+seg,ui);
+assert.equal(ui.overviewMonday('2026-12-06'),'2026-11-30');
+const at=h=>'2026-12-01T'+h+':00+07:00';
+const event=(name,start,end,province,extra={})=>({title:name,start:at(start),end:at(end),province,participantsKnown:true,blocksTime:true,...extra});
+const ev=[event('A','08:00','09:00',['A']),event('B','08:30','10:00',['B']),event('unknown','10:00','11:00',[],{participantsKnown:false}),event('free','14:00','15:00',['A'],{transparent:true,blocksTime:false})];
+let selected=ui.overviewEvents(ev,'2026-12-01','A');
+assert.deepEqual(Array.from(selected,e=>e.title),['A','unknown','free']);
+let ranges=ui.segments('2026-12-01',selected);assert.equal(ranges.filter(r=>r.busy).length,2);
+assert.ok(ranges.some(r=>!r.busy&&r.start===+new Date(at('09:00'))&&r.end===+new Date(at('10:00'))));
+ranges=ui.segments('2026-12-01',ui.overviewEvents(ev,'2026-12-01',''));assert.equal(ranges.filter(r=>r.busy).length,1);
+assert.equal(ui.overviewEvents([{...ev[0],start:'2026-11-30T00:00:00+07:00',end:'2026-12-01T00:00:00+07:00',allDay:true}],'2026-12-01','').length,0);
+assert.equal(ui.overviewTime({...ev[0],allDay:true},'2026-12-01'),'Cả ngày');
+assert.equal(ui.overviewEvents(ev,'2026-12-02','').length,0);
+console.log('Weekly overview checks passed: full/free/cancelled events, privacy, leader filters, unknown participants, overlap, date boundaries and frontend syntax.');
