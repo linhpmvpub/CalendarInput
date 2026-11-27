@@ -38,6 +38,7 @@ function editFind_(code){
   }throw Error(error);
 }
 function editEvent_(ref){
+  if(typeof schedulingGuard_==='function')schedulingGuard_(ref.record);
   const id=String(ref.record[META[2]]||ref.record[META[0]]||'');let event;
   try{event=Calendar.Events.get(CONFIG.calendarId,id);}catch(e){if(!reverseMissingError_(e))throw Error('Chưa kiểm tra được Calendar. Vui lòng thử lại.');if(ref.record[META[2]])throw Error('Lịch không còn trên Calendar. Liên hệ bộ phận tổng hợp; hệ thống không tự tạo lại lịch đã xóa.');return null;}
   if(event.status==='cancelled')throw Error('Lịch đã bị hủy trên Calendar, không thể chỉnh sửa tại đây.');
