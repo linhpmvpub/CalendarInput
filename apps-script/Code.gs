@@ -9,6 +9,23 @@ const CONFIG = {
 const Q = { province:'Lãnh đạo UBND tỉnh', office:'Lãnh đạo Văn phòng UBND tỉnh',
   specialists:'Chuyên viên', place:'Địa điểm', start:'Bắt đầu', end:'Kết thúc',
   title:'Nội dung', unit:'Đơn vị đăng ký', contact:'Người liên hệ', docs:'Link tài liệu' };
+const SPECIALIST_ROLES={specialistLead:'Chuyên viên chủ trì',specialistSupport:'Chuyên viên phối hợp'};
+function specialistRoleFields_(record){
+  return Object.fromEntries(Object.values(SPECIALIST_ROLES).map(label=>[label,String(record[label]||'')]));
+}
+function specialistRoles_(record,event,all){
+  const lines=String(event?.description||'').split(/\r?\n/),roles={};
+  const hasEventRoles=Object.values(SPECIALIST_ROLES).some(label=>lines.some(l=>l.startsWith(label+':')));
+  Object.entries(SPECIALIST_ROLES).forEach(([key,label])=>{
+    const line=lines.find(l=>l.startsWith(label+':'));
+    roles[key]=parsePeople_(hasEventRoles?(line===undefined?'':line.slice(label.length+1)):record[label]);
+  });
+  const lead=roles.specialistLead.filter(n=>all.includes(n));
+  // Never infer a lead from the position in a legacy, unclassified list.
+  roles.specialistLead=lead.length===1?lead:[];
+  roles.specialistSupport=all.filter(n=>!roles.specialistLead.includes(n));
+  return roles;
+}
 const META = ['Mã đăng ký','Trạng thái xử lý','Calendar Event ID','Ghi chú xử lý'];
 function onOpen_() {
   SpreadsheetApp.getUi().createMenu('Xếp lịch').addItem('Xử lý lại dòng đang chọn','retrySelected_').addToUi();
@@ -159,7 +176,7 @@ function processRow_(sheet,row){
       const peopleProperties=encodePeople_(v.people);
       const endEstimated=String(record['Cách xác định giờ kết thúc']||'').startsWith('Mặc định hết buổi');
       if(endEstimated)peopleProperties.endEstimated='true';
-      const description=[...['province','office','specialists'].map(k=>Q[k]+': '+String(record[Q[k]]||'')),record[Q.unit]?Q.unit+': '+record[Q.unit]:'','Người đăng ký: '+(record['Người đăng ký']||record[Q.contact]),v.docs?'Tài liệu: '+v.docs:'','Mã đăng ký: '+id].join('\n');
+      const description=[...['province','office','specialists'].map(k=>Q[k]+': '+String(record[Q[k]]||'')),...Object.entries(specialistRoleFields_(record)).map(([k,v])=>k+': '+v),record[Q.unit]?Q.unit+': '+record[Q.unit]:'','Người đăng ký: '+(record['Người đăng ký']||record[Q.contact]),v.docs?'Tài liệu: '+v.docs:'','Mã đăng ký: '+id].join('\n');
       const resource={id,...colorFields_(record),summary:String(record[Q.title]),location:String(record[Q.place]),description:description+(endEstimated?'\nGiờ kết thúc mặc định hết buổi: '+Utilities.formatDate(v.end,'Asia/Ho_Chi_Minh','HH:mm')+'.':''),
         start:{dateTime:v.start.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},end:{dateTime:v.end.toISOString(),timeZone:'Asia/Ho_Chi_Minh'},
         guestsCanModify:false,guestsCanInviteOthers:false,visibility:'default',extendedProperties:{private:peopleProperties}};
