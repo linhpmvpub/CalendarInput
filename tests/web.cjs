@@ -60,6 +60,15 @@ assert.equal(available.busy[0].title,'Họp giao ban');
 assert.deepEqual(available.busy[0].province,['Nguyễn A']);
 assert.ok(!JSON.stringify(available).includes('Thông tin liên hệ không công khai'));
 assert.ok(!JSON.stringify(available).includes('private@example.test'));
+
+const officeView=scheduleAvailability('2026-12-01',{province:[],office:['Trần B'],specialists:['Lê C']});
+assert.equal(officeView.busy.length,3);assert.equal(officeView.filtered,false);assert.ok(officeView.busy.every(e=>e.blocksTime===false));
+const generalView=scheduleAvailability('2026-12-01',{province:[],office:[],specialists:[]});
+assert.equal(generalView.busy[0].blocksTime,true);assert.equal(generalView.busy[1].blocksTime,false);assert.equal(generalView.busy[2].blocksTime,true);
+assert.ok(available.busy.every(e=>e.blocksTime===true));
+assert.equal(provinceConflict_(['province:Nguyễn A','office:Trần B'],{description:'Lãnh đạo UBND tỉnh: Nguyễn B',extendedProperties:{private:{people:JSON.stringify(['province:Nguyễn A'])}}}),false);
+assert.equal(provinceConflict_(['province:Nguyễn A'],{description:'Lãnh đạo Văn phòng UBND tỉnh: Trần B'}),false);
+assert.equal(provinceConflict_(['office:Trần B'],{}),false);
 const noEnd=webRecord_({...data,end:''});
 assert.equal(noEnd[Q.end].toISOString(),'2026-12-01T04:30:00.000Z');
 assert.equal(noEnd['Cách xác định giờ kết thúc'],'Mặc định hết buổi');
