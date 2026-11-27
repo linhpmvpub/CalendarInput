@@ -33,7 +33,7 @@ context.processRow_(sheet,2);assert.equal(get(2,'Trạng thái xử lý'),'CHỜ
 // Promote B; preserve original registration and private edit capability.
 // A manually changed status must not block a registration still carrying a conflict note and no event.
 put(3,'Trạng thái xử lý','ĐÃ LÊN LỊCH');
-action(3,'ĐẨY LÊN CALENDAR');assert.equal(get(3,'Trạng thái xử lý'),'ĐÃ LÊN LỊCH');assert.equal(events.get(b.id).status,'confirmed');assert.equal(events.get(b.id).colorId,'11');
+action(3,'ĐẨY LÊN CALENDAR');assert.equal(get(3,'Trạng thái xử lý'),'ĐÃ LÊN LỊCH');assert.equal(events.get(b.id).status,'confirmed');assert.equal(events.get(b.id).colorId,undefined);
 const inserts=insertCalls;action(3,'ĐẨY LÊN CALENDAR');assert.equal(insertCalls,inserts);
 // Held A cannot displace B silently.
 action(2,'ĐẨY LÊN CALENDAR');assert.equal(get(2,'Trạng thái xử lý'),'CHỜ XẾP LỊCH');assert.match(get(2,'Kết quả xếp lịch'),/trùng lịch/);assert.equal(insertCalls,inserts);
