@@ -37,8 +37,10 @@ function editFind_(code){
     if(match){const ref=editRead_(sheet,match.getRow()),expected=editHash_(String(ref.record[EDIT.code]||'')),given=editHash_(code);let diff=0;for(let i=0;i<expected.length;i++)diff|=expected.charCodeAt(i)^given.charCodeAt(i);if(diff||/KIỂM THỬ ĐÃ DỌN/.test(ref.record[META[1]]))throw Error(error);return ref;}
   }throw Error(error);
 }
-function editEvent_(ref){
-  if(typeof schedulingGuard_==='function')schedulingGuard_(ref.record);
+function editEvent_(ref,admin){
+  if(admin&&ref.record['Giao dịch xếp lịch (JSON)'])throw Error('Lịch đang được điều phối. Vui lòng thử lại sau.');
+  if(admin&&ref.record['Trạng thái điều phối']==='ĐANG CHỜ')return null;
+  if(!admin&&typeof schedulingGuard_==='function')schedulingGuard_(ref.record);
   const id=String(ref.record[META[2]]||ref.record[META[0]]||'');let event;
   try{event=Calendar.Events.get(CONFIG.calendarId,id);}catch(e){if(!reverseMissingError_(e))throw Error('Chưa kiểm tra được Calendar. Vui lòng thử lại.');if(ref.record[META[2]])throw Error('Lịch không còn trên Calendar. Liên hệ bộ phận tổng hợp; hệ thống không tự tạo lại lịch đã xóa.');return null;}
   if(event.status==='cancelled')throw Error('Lịch đã bị hủy trên Calendar, không thể chỉnh sửa tại đây.');
@@ -82,21 +84,21 @@ function editFinish_(ref,tx,event){
   editHeaders_(ref.sheet);ref=editRead_(ref.sheet,ref.row);
   const record=webRecord_(tx.data),ss=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'));
   if(!ref.record[EDIT.original])editPut_(ref,EDIT.original,JSON.stringify(tx.original||tx.before));
-  const entries={...record,[META[1]]:event?'ĐÃ LÊN LỊCH':'CHỜ XẾP NGÀY',[META[2]]:event?event.id:'',[META[3]]:'Đã chỉnh sửa từ website.'};
+  const entries={...record,[META[1]]:event?'ĐÃ LÊN LỊCH':tx.keepWaiting?(tx.waitingStatus||'CHỜ XẾP LỊCH'):'CHỜ XẾP NGÀY',[META[2]]:event?event.id:'',[META[3]]:tx.admin?'Đã chỉnh sửa bởi quản trị trên website.'+(tx.keepWaiting?' Giữ nguyên trạng thái chờ, chưa đẩy lên Calendar.':''):'Đã chỉnh sửa từ website.'};
   // Preserve unit information and unrelated Sheet columns.
   delete entries[Q.unit];Object.entries(entries).forEach(([k,value])=>editPut_(ref,k,value));
-  const log=ss.getSheetByName(EDIT.log)||ss.insertSheet(EDIT.log),headers=['Mã thao tác','Thời điểm','Mã đăng ký','Người đăng ký','Trước chỉnh sửa (JSON)','Sau chỉnh sửa (JSON)'];reverseHeaders_(log,headers);
+  const log=ss.getSheetByName(EDIT.log)||ss.insertSheet(EDIT.log),headers=['Mã thao tác','Thời điểm','Mã đăng ký','Người đăng ký','Trước chỉnh sửa (JSON)','Sau chỉnh sửa (JSON)','Vai trò chỉnh sửa'];reverseHeaders_(log,headers);
   const duplicate=log.getLastRow()>1?log.getRange(2,1,log.getLastRow()-1,1).createTextFinder(tx.operation).matchEntireCell(true).findNext():null;
-  if(!duplicate){log.getRange(log.getLastRow()+1,1,1,headers.length).setValues([[tx.operation,new Date(tx.at),ref.record[META[0]],safe_(record['Người đăng ký']),JSON.stringify(tx.before),JSON.stringify(tx.data)]]);log.getRange(2,2,log.getLastRow()-1,1).setNumberFormat('dd/MM/yyyy HH:mm:ss');}
+  if(!duplicate){log.getRange(log.getLastRow()+1,1,1,headers.length).setValues([[tx.operation,new Date(tx.at),ref.record[META[0]],safe_(record['Người đăng ký']),JSON.stringify(tx.before),JSON.stringify(tx.data),tx.admin?'QUẢN TRỊ':'MÃ RIÊNG']]);log.getRange(2,2,log.getLastRow()-1,1).setNumberFormat('dd/MM/yyyy HH:mm:ss');}
   // Refresh Calendar mirror immediately; five-minute polling continues independently.
   if(event){const h=reverseHeaders_(ref.sheet,RS.columns);ref.h=h;const snap=reverseSnapshot_(event);const mirror={'Trạng thái Calendar':'ĐÃ LÊN LỊCH','Nội dung trên Calendar':snap.data.title,'Bắt đầu trên Calendar':snap.start,'Kết thúc trên Calendar':snap.end,'Địa điểm trên Calendar':snap.data.place,'Thành phần trên Calendar':snap.data.people,'Calendar cập nhật lúc':snap.updated,'Phát hiện thay đổi lúc':new Date(tx.at),'Lần kiểm tra Calendar':new Date(),'Link Calendar':snap.link,'Ghi chú đồng bộ ngược':'Đã chỉnh sửa từ website; xem Nhật ký chỉnh sửa.','Dấu đồng bộ Calendar':snap.hash};Object.entries(mirror).forEach(([k,x])=>editPut_(ref,k,x));}
   editPut_(ref,EDIT.last,tx.operation);editPut_(ref,EDIT.at,new Date(tx.at));SpreadsheetApp.flush();editPut_(ref,EDIT.pending,'');SpreadsheetApp.flush();
   return {id:String(ref.record[META[0]]),status:String(ref.record[META[1]]),editCode:String(ref.record[EDIT.code]),updated:true};
 }
-function editRecover_(ref){
+function editRecover_(ref,admin){
   if(!ref.record[EDIT.pending])return null;
-  const tx=JSON.parse(String(ref.record[EDIT.pending])),event=editEvent_(ref);
-  if(tx.data.mode==='flexible'&&!event||event?.extendedProperties?.private?.editOperation===tx.operation)return editFinish_(ref,tx,event);
+  const tx=JSON.parse(String(ref.record[EDIT.pending])),event=editEvent_(ref,admin);
+  if((tx.data.mode==='flexible'||tx.keepWaiting)&&!event||event?.extendedProperties?.private?.editOperation===tx.operation)return editFinish_(ref,tx,event);
   return null;
 }
 function scheduleEditLoad(token,code){
@@ -104,23 +106,27 @@ function scheduleEditLoad(token,code){
   try{editSession_(token);let ref=editFind_(code);editRecover_(ref);ref=editRead_(ref.sheet,ref.row);const event=editEvent_(ref);return {id:String(ref.record[META[0]]),status:String(ref.record[META[1]]),data:editData_(ref.record,event),revision:editRevision_(ref,event),scheduled:!!event};}finally{lock.releaseLock();}
 }
 function scheduleUpdate(token,code,revision,operation,data){
+  return editUpdate_(token,code,revision,operation,data,null);
+}
+function editUpdate_(token,code,revision,operation,data,adminId){
   if(typeof operation!=='string'||!/^w[a-f0-9]{32}$/.test(operation))throw Error('Mã thao tác không hợp lệ.');
   const record=webRecord_(data),lock=LockService.getScriptLock();lock.waitLock(30000);
   try{
-    editSession_(token);let ref=editFind_(code);
-    if(ref.record[EDIT.pending]){const pending=JSON.parse(String(ref.record[EDIT.pending]));if(pending.operation===operation&&editHash_(JSON.stringify(pending.data))!==editHash_(JSON.stringify(data)))throw Error('Lần lưu trước chưa hoàn tất. Hãy mở lại lịch trước khi sửa tiếp.');const recovered=editRecover_(ref);if(recovered&&pending.operation===operation)return recovered;ref=editRead_(ref.sheet,ref.row);}
+    if(adminId)adminSession_(token,code);else editSession_(token);let ref=adminId?adminFind_(adminId):editFind_(code);
+    if(ref.record[EDIT.pending]){const pending=JSON.parse(String(ref.record[EDIT.pending]));if(pending.operation===operation&&editHash_(JSON.stringify(pending.data))!==editHash_(JSON.stringify(data)))throw Error('Lần lưu trước chưa hoàn tất. Hãy mở lại lịch trước khi sửa tiếp.');const recovered=editRecover_(ref,!!adminId);if(recovered&&pending.operation===operation)return recovered;ref=editRead_(ref.sheet,ref.row);}
     if(ref.record[EDIT.last]===operation)return {id:String(ref.record[META[0]]),status:String(ref.record[META[1]]),editCode:code,updated:true};
-    const event=editEvent_(ref);if(revision!==editRevision_(ref,event))throw Error('Lịch đã được thay đổi ở nơi khác. Hãy bấm Mở lịch để tải bản mới nhất trước khi lưu.');
+    const event=editEvent_(ref,!!adminId);if(revision!==editRevision_(ref,event))throw Error('Lịch đã được thay đổi ở nơi khác. Hãy bấm Mở lịch để tải bản mới nhất trước khi lưu.');
     if(event&&data.mode==='flexible')throw Error('Lịch đã lên Calendar phải giữ ngày giờ cụ thể. Liên hệ bộ phận tổng hợp nếu cần hủy lịch.');
     const before=editData_(ref.record,event);
     const next=validate_(record);
     const sameSlot=event&&+next.start===+new Date(event.start.dateTime)&&+next.end===+new Date(event.end.dateTime)&&['province','office','specialists'].every(k=>JSON.stringify(parsePeople_(record[Q[k]]).sort())===JSON.stringify([...before[k]].sort()));
-    if(!sameSlot)editConflict_(record,event?.id);
+    const keepWaiting=!!adminId&&!event;
+    if(!sameSlot&&!keepWaiting)editConflict_(record,event?.id);
     const original=Object.fromEntries([...Object.values(Q),...Object.values(SPECIALIST_ROLES),'Người đăng ký','Loại thời gian','Gợi ý thời gian'].map(k=>[k,ref.record[k]||'']));
-    const tx={operation,data,before,original,at:new Date().toISOString()};
+    const tx={operation,data,before,original,at:new Date().toISOString(),admin:!!adminId,keepWaiting,waitingStatus:keepWaiting?String(ref.record[META[1]]):''};
     editPut_(ref,EDIT.pending,JSON.stringify(tx));SpreadsheetApp.flush();
     let updated=null;
-    if(data.mode==='fixed'){
+    if(data.mode==='fixed'&&!keepWaiting){
       const resource=editResource_(ref,record,event,operation);
       try{updated=event?Calendar.Events.patch(resource,CONFIG.calendarId,event.id,{sendUpdates:'none'},{'If-Match':event.etag}):Calendar.Events.insert({...resource,id:String(ref.record[META[0]]),guestsCanModify:false,guestsCanInviteOthers:false},CONFIG.calendarId,{sendUpdates:'none'});}
       catch(error){
@@ -132,4 +138,80 @@ function scheduleUpdate(token,code,revision,operation,data){
     }
     return editFinish_(ref,tx,updated);
   }finally{lock.releaseLock();}
+}
+
+/* Administrative sessions are server-side, short lived and bound to the bootstrap session.
+   ADMIN_EDIT_SECRET is a private Script Property containing JSON {salt,hash}.
+   Neither this property nor per-registration edit codes are returned by admin endpoints. */
+function adminSecret_(){
+  let value;try{value=JSON.parse(PropertiesService.getScriptProperties().getProperty('ADMIN_EDIT_SECRET')||'null');}catch(e){}
+  if(!value||typeof value.salt!=='string'||!/^[a-f0-9]{64}$/.test(value.hash||''))throw Error('Chưa cấu hình mã quản trị.');
+  return value;
+}
+function adminEqual_(a,b){let diff=a.length^b.length;for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^(b.charCodeAt(i)||0);return diff===0;}
+function adminWeb_(token){
+  if(typeof token!=='string'||token.length!==72||!CacheService.getScriptCache().get('web:'+token))throw Error('Phiên trang đã hết hạn. Hãy tải lại trang.');
+}
+function scheduleAdminLogin(token,password){
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    adminWeb_(token);const cache=CacheService.getScriptCache(),key='admin-attempt:'+editHash_(token),now=Date.now();
+    const read=k=>{const v=JSON.parse(cache.get(k)||'null');return v&&v.until>now?v:{count:0,until:now+900000};};
+    const local=read(key),global=read('admin-attempt:global');
+    if(local.count>=5||global.count>=30)throw Error('Đã nhập sai quá nhiều lần. Vui lòng thử lại sau 15 phút.');
+    const secret=adminSecret_();
+    if(typeof password!=='string'||password.length>200||!adminEqual_(editHash_(secret.salt+':'+password),secret.hash)){
+      local.count++;global.count++;cache.put(key,JSON.stringify(local),900);cache.put('admin-attempt:global',JSON.stringify(global),900);throw Error('Mã quản trị không đúng.');
+    }
+    const ticket=Utilities.getUuid()+Utilities.getUuid(),expires=now+1800000;
+    cache.put('admin:'+editHash_(ticket),JSON.stringify({web:editHash_(token),expires,secret:secret.hash}),1800);
+    cache.remove(key);return {ticket,expires};
+  }finally{lock.releaseLock();}
+}
+function adminSession_(token,ticket){
+  adminWeb_(token);
+  if(typeof ticket!=='string'||ticket.length!==72)throw Error('Phiên quản trị đã hết hạn. Vui lòng đăng nhập lại.');
+  const session=JSON.parse(CacheService.getScriptCache().get('admin:'+editHash_(ticket))||'null');
+  if(!session||session.expires<=Date.now()||session.web!==editHash_(token)||session.secret!==adminSecret_().hash)throw Error('Phiên quản trị đã hết hạn. Vui lòng đăng nhập lại.');
+}
+function scheduleAdminLogout(token,ticket){adminSession_(token,ticket);CacheService.getScriptCache().remove('admin:'+editHash_(ticket));return {ok:true};}
+function adminFind_(id){
+  if(typeof id!=='string'||!/^[a-f0-9]{32,41}$/.test(id))throw Error('Mã đăng ký không hợp lệ.');
+  const ss=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID'));
+  for(const sheet of ss.getSheets()){
+    if(sheet.getLastRow()<2)continue;const h=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
+    if(!Object.values(Q).every(n=>h.includes(n))||!h.includes(META[0]))continue;
+    const match=sheet.getRange(2,h.indexOf(META[0])+1,sheet.getLastRow()-1,1).createTextFinder(id).matchEntireCell(true).findNext();
+    if(match){const ref=editRead_(sheet,match.getRow());if(/KIỂM THỬ/.test(ref.record[META[1]]))break;return ref;}
+  }throw Error('Không tìm thấy đăng ký. Hãy tải lại danh sách.');
+}
+function scheduleAdminList(token,ticket,options){
+  adminSession_(token,ticket);options=options||{};
+  const query=String(options.query||'').slice(0,200).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/đ/g,'d'),offset=Math.max(0,Math.floor(Number(options.offset)||0)),scope=String(options.scope||'current');
+  const ss=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID')),items=[],today=Utilities.formatDate(new Date(),'Asia/Ho_Chi_Minh','yyyy-MM-dd');
+  const fmt=value=>{if(!value)return '';const d=new Date(value);return Number.isFinite(+d)?Utilities.formatDate(d,'Asia/Ho_Chi_Minh',"yyyy-MM-dd'T'HH:mm"):'';};
+  for(const sheet of ss.getSheets()){
+    if(sheet.getLastRow()<2)continue;const h=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
+    if(!Object.values(Q).every(n=>h.includes(n))||!h.includes(META[0]))continue;
+    for(const values of sheet.getRange(2,1,sheet.getLastRow()-1,h.length).getValues()){
+      const r=Object.fromEntries(h.map((k,i)=>[k,values[i]])),id=String(r[META[0]]||'');if(!/^[a-f0-9]{32,41}$/.test(id)||/KIỂM THỬ/.test(r[META[1]]))continue;
+      const scheduled=!!r[META[2]]&&r['Trạng thái điều phối']!=='ĐANG CHỜ',removed=/ĐÃ XÓA|ĐÃ HỦY|KHÔNG CÒN/.test(String(r['Trạng thái Calendar']||''));
+      const item={id,title:reverseText_((scheduled?r['Nội dung trên Calendar']:'')||r[Q.title]),start:fmt((scheduled?r['Bắt đầu trên Calendar']:'')||r[Q.start]),end:fmt((scheduled?r['Kết thúc trên Calendar']:'')||r[Q.end]),province:reverseText_(r[Q.province]),status:removed?String(r['Trạng thái Calendar']):String(r[META[1]]||''),scheduled,removed,sheet:sheet.getName()};
+      if(scope==='current'&&(removed||scheduled&&item.end&&item.end.slice(0,10)<today))continue;
+      if(scope==='waiting'&&(scheduled||removed))continue;
+      if(query&&!Object.values(item).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/đ/g,'d').includes(query))continue;
+      items.push(item);
+    }
+  }
+  items.sort((a,b)=>(a.start||'9999').localeCompare(b.start||'9999')||a.id.localeCompare(b.id));
+  return {items:items.slice(offset,offset+100),total:items.length,next:offset+100<items.length?offset+100:null};
+}
+function scheduleAdminLoad(token,ticket,id){
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{adminSession_(token,ticket);let ref=adminFind_(id);editHeaders_(ref.sheet);ref=editRead_(ref.sheet,ref.row);editRecover_(ref,true);ref=editRead_(ref.sheet,ref.row);const event=editEvent_(ref,true);return {id,status:String(ref.record[META[1]]),data:editData_(ref.record,event),revision:editRevision_(ref,event),scheduled:!!event,admin:true};}finally{lock.releaseLock();}
+}
+function scheduleAdminUpdate(token,ticket,id,revision,operation,data){
+  // Authentication must precede lookup, including empty/forged IDs. The core rechecks under lock.
+  adminSession_(token,ticket);if(typeof id!=='string'||!/^[a-f0-9]{32,41}$/.test(id))throw Error('Mã đăng ký không hợp lệ.');
+  const result=editUpdate_(token,ticket,revision,operation,data,id);return {id:result.id,status:result.status,updated:true,admin:true};
 }
