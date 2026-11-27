@@ -56,7 +56,7 @@ function schedulingMaintenance_(ss,deadline){
 function schedulingGet_(id){
   try{return Calendar.Events.get(CONFIG.calendarId,id);}catch(e){if(/\b404\b|not found/i.test(String(e)))return null;throw e;}
 }
-function schedulingInput_(record){return Object.fromEntries([...Object.values(Q),'Người đăng ký','Loại thời gian','Gợi ý thời gian','Cách xác định giờ kết thúc'].map(k=>[k,record[k]||'']));}
+function schedulingInput_(record){return Object.fromEntries([...Object.values(Q),...Object.values(SPECIALIST_ROLES),'Người đăng ký','Loại thời gian','Gợi ý thời gian','Cách xác định giờ kết thúc'].map(k=>[k,record[k]||'']));}
 function schedulingRecord_(raw){
   const record={...raw};Object.keys(record).forEach(k=>{if(!(record[k] instanceof Date))record[k]=reverseText_(record[k]);});
   if(record[Q.start] instanceof Date&&!record[Q.end]){record[Q.end]=defaultEnd_(record[Q.start]);record['Cách xác định giờ kết thúc']='Mặc định hết buổi';}
