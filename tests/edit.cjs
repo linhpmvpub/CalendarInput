@@ -39,3 +39,28 @@ const key=get('Mã chỉnh sửa (giữ riêng)');const enabled=context.enableRe
 // Original Google Form tabs do not have website-specific fields. Migration adds them before editing.
 const legacy=new Sheet('Câu trả lời biểu mẫu 1'),lh=run('[...Object.values(Q),...META]'),legacyId='b'.repeat(32);legacy.rows=[lh,lh.map(n=>({'Lãnh đạo UBND tỉnh':'Nguyễn A','Nội dung':'Đăng ký cũ','Địa điểm':'Phòng cũ','Người liên hệ':'Linh','Đơn vị đăng ký':'Văn phòng','Mã đăng ký':legacyId,'Trạng thái xử lý':'CHỜ XỬ LÝ TRÙNG LỊCH','Bắt đầu':new Date('2026-12-08T01:00:00Z'),'Kết thúc':new Date('2026-12-08T02:00:00Z')}[n]||''))];sheets.push(legacy);context.enableRegistrationEditing_();const legacyCode=legacy.rows[1][legacy.rows[0].indexOf('Mã chỉnh sửa (giữ riêng)')];load=context.scheduleEditLoad(token,legacyCode);context.scheduleUpdate(token,legacyCode,load.revision,op(),{...load.data,title:'Đã sửa đăng ký cũ'});assert.equal(events.get(legacyId).summary,'Đã sửa đăng ký cũ');assert.equal(legacy.rows[1][legacy.rows[0].indexOf('Đơn vị đăng ký')],'Văn phòng');assert.equal(legacy.rows[1][legacy.rows[0].indexOf('Người đăng ký')],'Linh');
 console.log('Editing tests passed: private codes, fixed/flexible edits, default end, conflict exclusion, If-Match concurrency, audit, API timeout and partial-Sheet recovery, cancelled events.');
+
+// Lead/support roles survive Sheet, Calendar, edits and report output; legacy names aren't promoted.
+run("CONFIG.specialists=['Lê C','Trần D','Nguyễn E'];");
+const rolesData={...data,province:[],specialists:[],specialistLead:['Nguyễn E'],specialistSupport:['Lê C','Trần D'],start:'2026-12-10T08:00',end:'2026-12-10T09:00'};
+assert.throws(()=>context.webRecord_({...rolesData,specialistLead:['Lê C','Trần D']}),/không hợp lệ/);
+assert.throws(()=>context.webRecord_({...rolesData,specialistLead:['Ngoài danh sách']}),/không hợp lệ/);
+assert.throws(()=>context.webRecord_({...rolesData,specialistSupport:['Nguyễn E']}),/đồng thời/);
+assert.throws(()=>context.webRecord_({...rolesData,specialistLead:'Nguyễn E'}),/không hợp lệ/);
+const roles=context.scheduleSubmit(token,op(),rolesData),row=sheet.rows.findIndex(r=>r[sheet.rows[0].indexOf('Mã đăng ký')]===roles.id);
+assert.equal(get('Chuyên viên',row),'Nguyễn E, Lê C, Trần D');assert.equal(get('Chuyên viên chủ trì',row),'Nguyễn E');assert.equal(get('Chuyên viên phối hợp',row),'Lê C, Trần D');
+assert.match(events.get(roles.id).description,/Chuyên viên: Nguyễn E, Lê C, Trần D/);
+assert.match(events.get(roles.id).description,/Chuyên viên chủ trì: Nguyễn E/);
+load=context.scheduleEditLoad(token,roles.editCode);assert.deepEqual([...load.data.specialistLead],['Nguyễn E']);assert.deepEqual([...load.data.specialistSupport],['Lê C','Trần D']);
+context.scheduleUpdate(token,roles.editCode,load.revision,op(),{...load.data,specialistLead:['Trần D'],specialistSupport:['Nguyễn E','Lê C']});
+assert.equal(get('Chuyên viên',row),'Trần D, Nguyễn E, Lê C');assert.equal(get('Chuyên viên chủ trì',row),'Trần D');
+load=context.scheduleEditLoad(token,roles.editCode);assert.deepEqual([...load.data.specialistLead],['Trần D']);
+vm.runInContext(fs.readFileSync('apps-script/WeeklyReport.gs','utf8'),context);
+assert.deepEqual([...context.weeklyPeople_(events.get(roles.id)).specialists],['Trần D','Nguyễn E','Lê C']);
+const legacyRoles=context.editData_({'Chuyên viên':'Lê C, Trần D'},null);
+assert.deepEqual([...legacyRoles.specialistLead],[]);assert.deepEqual([...legacyRoles.specialistSupport],['Lê C','Trần D']);
+// Removing lead preserves the other people, and explicit blank roles override stale stored roles.
+load=context.scheduleEditLoad(token,roles.editCode);context.scheduleUpdate(token,roles.editCode,load.revision,op(),{...load.data,specialistLead:[],specialistSupport:['Lê C']});
+assert.equal(get('Chuyên viên chủ trì',row),'');assert.equal(get('Chuyên viên',row),'Lê C');
+assert.deepEqual([...context.scheduleEditLoad(token,roles.editCode).data.specialistLead],[]);
+console.log('Specialist role tests passed: selection limits, duplicate rejection, submit/edit ordering, Calendar, weekly report and legacy compatibility.');
