@@ -1,5 +1,5 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),crypto=require('node:crypto');
-const code=fs.readFileSync(__dirname+'/../apps-script/Code.gs','utf8')+'\n'+fs.readFileSync(__dirname+'/../apps-script/Web.gs','utf8');
+const code=fs.readFileSync(__dirname+'/../apps-script/Code.gs','utf8')+'\n'+fs.readFileSync(__dirname+'/../apps-script/Web.gs','utf8')+'\n'+fs.readFileSync(__dirname+'/../apps-script/WeeklyReport.gs','utf8');
 const rows=[],cache=new Map(),props=new Map([['SHEET_ID','test']]);
 let initialized=false;
 const sheet={getMaxColumns:()=>100,insertColumnsAfter(){},getLastRow:()=>rows.length,getLastColumn:()=>rows[0]?.length||0,setFrozenRows:()=>{},getRange(r,c,n=1,m=1){return {setValues(v){v.forEach((line,i)=>{rows[r-1+i]??=[];line.forEach((v,j)=>rows[r-1+i][c-1+j]=v);});},getValues(){return Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>rows[r-1+i]?.[c-1+j]??''));},setNumberFormat(){},setValue(v){rows[r-1]??=[];rows[r-1][c-1]=v;},createTextFinder(id){return {matchEntireCell(){return this;},findNext(){const idx=rows.findIndex((v,i)=>i>=r-1&&v[c-1]===id);return idx<0?null:{getRow:()=>idx+1};}};}};}};
@@ -92,6 +92,23 @@ assert.ok(!JSON.stringify(overview).includes('private@example.test'));
 assert.ok(!JSON.stringify(overview).includes('Thông tin liên hệ không công khai'));
 assert.ok(!JSON.stringify(overview).includes('attendees'));
 assert.throws(()=>scheduleOverview('2026-02-30'));
+const detailed={...entries[0],location:'Phòng họp 3',description:[
+  'Lãnh đạo UBND tỉnh: Nguyễn A','Lãnh đạo Văn phòng UBND tỉnh: Trần B','Chuyên viên: Lê C, CV D',
+  'Chuyên viên chủ trì: CV D','Chuyên viên phối hợp: Lê C','Người đăng ký: Người thử',
+  'Tài liệu: https://example.test/document','Mã đăng ký: do-not-return','Mã chỉnh sửa: secret-do-not-return',
+  'Ghi chú riêng: do-not-return'].join('\\n')};
+Calendar.Events.list=()=>({items:[detailed]});
+const full=scheduleOverview('2026-12-01').busy[0];
+assert.deepEqual(full.office,['Trần B']);assert.deepEqual(full.specialists,['CV D','Lê C']);
+assert.deepEqual(full.specialistLead,['CV D']);assert.deepEqual(full.specialistSupport,['Lê C']);assert.equal(full.specialistRolesKnown,true);
+assert.equal(full.location,'Phòng họp 3');assert.equal(full.registrant,'Người thử');assert.equal(full.documents,'https://example.test/document');
+assert.ok(!JSON.stringify(full).includes('do-not-return'));assert.ok(!JSON.stringify(full).includes('private@example.test'));
+const legacy=overviewDetails_({...entries[0],description:'LĐVP: Trần B<br>CV: Lê C, CV D'});
+assert.deepEqual(legacy.office,['Trần B']);assert.deepEqual(legacy.specialists,['Lê C','CV D']);assert.equal(legacy.specialistRolesKnown,false);assert.deepEqual(legacy.specialistLead,[]);
+const rolesOnly=overviewDetails_({...entries[0],description:'Chuyên viên chủ trì: CV D\\nChuyên viên phối hợp: Lê C'});
+assert.deepEqual(rolesOnly.specialists,['CV D','Lê C']);
+const thin=scheduleAvailability('2026-12-01',{province:[],office:[],specialists:[]}).busy[0];assert.equal(thin.documents,undefined);assert.equal(thin.office,undefined);
+
 Calendar.Events.list=()=>{throw Error('API unavailable');};
 assert.throws(()=>scheduleAvailability('2026-12-01',{province:[],office:[],specialists:[]}));
 `,context);
