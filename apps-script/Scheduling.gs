@@ -39,7 +39,7 @@ function sheetSchedulingOnEdit_(e){
   const h=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0],col=h.indexOf(PLAN.command)+1;
   if(!col||e.range.getColumn()>col||e.range.getLastColumn()<col)return;
   const lock=LockService.getScriptLock();if(!lock.tryLock(25000))return;
-  try{for(let row=Math.max(2,e.range.getRow());row<=Math.min(sheet.getLastRow(),e.range.getLastRow(),e.range.getRow()+19);row++)schedulingRun_(sheet,row);}finally{lock.releaseLock();}
+  try{for(let row=Math.max(2,e.range.getRow());row<=Math.min(sheet.getLastRow(),e.range.getLastRow(),e.range.getRow()+19);row++)schedulingRun_(sheet,row);}finally{lock.releaseLock();if(typeof tgCaptureSafe_==='function')tgCaptureSafe_();}
 }
 function schedulingMaintenance_(ss,deadline){
   schedulingSetup_(ss);let count=0;
