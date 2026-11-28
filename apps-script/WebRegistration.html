@@ -178,9 +178,9 @@ function overviewTime(event,day){if(event.allDay)return 'Cả ngày';const stamp
 function overviewSessions(events,day){
   const base=+dayDate(day),sessions=[];
   const allDay=events.filter(e=>e.allDay);if(allDay.length)sessions.push({label:'Cả ngày',events:allDay});
-  for(const [label,from,to] of [['Sáng',0,12],['Chiều',12,18],['Tối',18,24]]){
+  for(const [label,from,to] of [['Sáng',0,12],['Chiều',12,24]]){
     const matches=events.filter(e=>!e.allDay&&+new Date(e.start)<base+to*3600000&&+new Date(e.end)>base+from*3600000);
-    if(matches.length||label!=='Tối')sessions.push({label,events:matches});
+    sessions.push({label,events:matches});
   }
   return sessions;
 }
