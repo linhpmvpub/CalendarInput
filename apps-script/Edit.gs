@@ -156,7 +156,7 @@ function adminEqual_(a,b){let diff=a.length^b.length;for(let i=0;i<a.length;i++)
 function adminWeb_(token){
   if(typeof token!=='string'||token.length!==72||!CacheService.getScriptCache().get('web:'+token))throw Error('Phiên trang đã hết hạn. Hãy tải lại trang.');
 }
-function scheduleAdminLogin(token,password){
+function scheduleAdminLogin(token,password,skipIndex){
   const lock=LockService.getUserLock();lock.waitLock(10000);let result;
   try{
     adminWeb_(token);const cache=CacheService.getScriptCache(),key='admin-attempt:'+editHash_(token),now=Date.now();
@@ -171,6 +171,7 @@ function scheduleAdminLogin(token,password){
     cache.put('admin:'+editHash_(ticket),JSON.stringify({web:editHash_(token),expires,secret:secret.hash}),1800);
     cache.remove(key);result={ticket,expires};
   }finally{lock.releaseLock();}
+  if(skipIndex===true)return result;
   try{return {...result,index:adminIndexPublic_(adminIndex_())};}catch(e){return {...result,listError:'Chưa tải được danh sách. Bấm Làm mới để thử lại.'};}
 }
 function adminSession_(token,ticket){
@@ -250,4 +251,21 @@ function scheduleAdminUpdate(token,ticket,id,revision,operation,data){
   // Authentication must precede lookup, including empty/forged IDs. The core rechecks under lock.
   adminSession_(token,ticket);if(typeof id!=='string'||!/^[a-f0-9]{32,41}$/.test(id))throw Error('Mã đăng ký không hợp lệ.');
   const result=editUpdate_(token,ticket,revision,operation,data,id);return {id:result.id,status:result.status,updated:true,admin:true,item:result.item};
+}
+
+/* Admin-only PDF. Use a fresh Calendar read, never client-supplied event contents.
+   Conversion returns bytes directly; no public Drive file or temporary Sheet. */
+function scheduleAdminExportPdf(token,ticket,day,leader){
+  adminSession_(token,ticket);
+  if(typeof leader!=='string'||(leader&&!CONFIG.province.includes(leader)))throw Error('Lãnh đạo được chọn không hợp lệ.');
+  const week=weeklyWeek_(day),data=scheduleOverview(week);
+  const events=data.busy.filter(e=>!leader||e.province.includes(leader)||!e.participantsKnown);
+  if(!events.length)throw Error('Không có lịch phù hợp với bộ lọc để xuất PDF.');
+  const html=weeklyPdfHtml_(week,leader,events);
+  if(html.length>1500000)throw Error('Lịch tuần quá lớn để xuất một file. Hãy lọc theo từng lãnh đạo.');
+  const bytes=Utilities.newBlob(html,'text/html','lich-tuan.html').getAs('application/pdf').getBytes();
+  if(bytes.length<5||bytes.slice(0,5).map(b=>String.fromCharCode((b+256)%256)).join('')!=='%PDF-')throw Error('Chưa tạo được file PDF. Vui lòng thử lại.');
+  adminSession_(token,ticket);
+  const suffix=leader?'-'+leader.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[đĐ]/g,'d').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-|-$/g,''):'';
+  return {filename:'Lich-cong-tac-'+week+suffix+'.pdf',mime:'application/pdf',base64:Utilities.base64Encode(bytes)};
 }
