@@ -113,6 +113,7 @@ let editing=null,receiptCode='',editLoading=false;
 let adminTicket='',adminExpires=0,adminTimer,adminSerial=0,adminNext=null,adminItems=[],adminLoadedAt=0,adminVisible=50,adminListLoading=false;
 let token='',requestId='',sending=false,today='',weekStart='',activeDay='',availability=null,availabilitySerial=0,refreshTimer;
 const normalize=t=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/đ/g,'d');
+const dateLabel=day=>String(day||'').split('-').reverse().join('/');
 const dayDate=day=>new Date(day+'T00:00:00+07:00');
 const vnDay=date=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
 const clock=date=>new Intl.DateTimeFormat('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(date);
@@ -190,7 +191,7 @@ function loadOverview(){
 function overviewNode(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;}
 function renderOverview(){
   const root=$('overview-days');root.replaceChildren();const status=$('overview-status'),leader=$('overview-leader').value;
-  const dateLabel=d=>d.split('-').reverse().join('/');$('overview-range').textContent=dateLabel(overviewWeek)+' — '+dateLabel(addDays(overviewWeek,6));
+  $('overview-range').textContent=dateLabel(overviewWeek)+' — '+dateLabel(addDays(overviewWeek,6));
   $('overview-meta').textContent=overviewData?'Cập nhật lúc '+clock(new Date(overviewData.updatedAt))+' · Giờ Việt Nam':'';
   status.className='overview-status'+(overviewError?' error':'');status.hidden=!!overviewData;$('overview-table-head').hidden=!overviewData;root.hidden=!overviewData;status.textContent=overviewError||(overviewLoading?'Đang tải lịch tuần…':'');if(!overviewData)return;
   for(let i=0;i<7;i++){
@@ -254,7 +255,7 @@ function resetRegistration(){
 function openRegistration(code,adminId){
   if(sending||editLoading)return;code=code.replace(/\s/g,'');if(!adminId&&!code){$('edit-status').textContent='Vui lòng nhập mã chỉnh sửa.';return;}
   editLoading=true;if(adminId){renderAdminList();$('admin-status').textContent='Đang mở bản mới nhất của lịch đã chọn…';}$('edit-open').disabled=true;$('submit').disabled=true;$('edit-cancel').disabled=true;$('edit-status').textContent='Đang tải thông tin mới nhất…';
-  const loader=google.script.run.withSuccessHandler(result=>{
+  const onLoaded=result=>{
     if(adminId&&!adminTicket){editLoading=false;setBusy(false);return;}
     editLoading=false;if(adminId)renderAdminList();$('edit-open').disabled=false;$('submit').disabled=false;$('edit-cancel').disabled=false;
     const d=result.data;form.reset();form.querySelectorAll('.option').forEach(l=>l.hidden=false);form.querySelectorAll('input[data-group]').forEach(c=>c.checked=(d[c.dataset.group]||[]).includes(c.value));
@@ -263,8 +264,8 @@ function openRegistration(code,adminId){
     $('date').value=d.start.slice(0,10);$('start').value=d.start.slice(11);$('end').value=d.end.slice(11);setMode();
     editing={code,id:result.id,admin:!!adminId,revision:result.revision,operation:newId()};$('edit-code').value=code;$('edit-status').textContent='Đã mở thông tin mới nhất. Chỉnh sửa trong form bên dưới.';$('edit-access').open=false;
     $('edit-summary').textContent=(adminId?'QUẢN TRỊ · ':'')+'Mã đăng ký: '+result.id+(adminId&&!result.scheduled?' · Lưu thay đổi sẽ giữ nguyên trạng thái chờ.':'');$('edit-scheduled-note').hidden=!result.scheduled;$('edit-banner').hidden=false;$('receipt').hidden=true;$('message').hidden=true;form.hidden=false;$('submit').textContent='Lưu thay đổi';$('progress').textContent='Thay đổi được ghi vào lịch hiện tại và lưu lịch sử chỉnh sửa.';updateSelection();if(d.start)setWeek(d.start.slice(0,10));showPortal('register');switchView('form');$('edit-banner').scrollIntoView({behavior:'smooth',block:'start'});
-  }).withFailureHandler(err=>{editLoading=false;if(adminId)renderAdminList();$('edit-open').disabled=false;$('submit').disabled=false;$('edit-cancel').disabled=false;$('edit-status').textContent=err.message||'Chưa mở được lịch. Vui lòng thử lại.';if(adminId)adminError(err);});
-  if(adminId)loader.scheduleAdminLoad(token,adminTicket,adminId);else loader.scheduleEditLoad(token,code);
+  };const onLoadFailed=err=>{editLoading=false;if(adminId)renderAdminList();$('edit-open').disabled=false;$('submit').disabled=false;$('edit-cancel').disabled=false;$('edit-status').textContent=err.message||'Chưa mở được lịch. Vui lòng thử lại.';if(adminId)adminError(err);};
+  if(adminId)adminRead('scheduleAdminLoad',[token,adminTicket,adminId],onLoaded,onLoadFailed);else google.script.run.withSuccessHandler(onLoaded).withFailureHandler(onLoadFailed).scheduleEditLoad(token,code);
 }
 $('edit-lookup').onsubmit=e=>{e.preventDefault();openRegistration($('edit-code').value);};
 $('edit-receipt').onclick=()=>{$('edit-access').open=true;openRegistration(receiptCode);};
@@ -275,6 +276,13 @@ $('again').onclick=()=>{resetRegistration();form.scrollIntoView({behavior:'smoot
 function clearAdmin(message){
   adminSerial++;adminTicket='';adminExpires=0;clearTimeout(adminTimer);adminItems=[];adminNext=null;adminLoadedAt=0;adminVisible=50;adminListLoading=false;$('admin-list').replaceChildren();$('admin-content').hidden=true;$('admin-logout').hidden=true;$('admin-login').hidden=false;$('admin-password').value='';$('admin-status').textContent=message||'';
   if(editing?.admin&&!sending){resetRegistration();showPortal('admin');}
+}
+function adminRead(method,args,onSuccess,onFailure){
+  let active=true;
+  const fail=err=>{if(!active)return;active=false;clearTimeout(timer);onFailure(err);};
+  const timer=setTimeout(()=>fail({message:'Yêu cầu mất hơn 25 giây. Hãy thử lại hoặc bấm Làm mới dữ liệu; không cần đăng ký lịch mới.'}),25000);
+  const runner=google.script.run.withSuccessHandler(result=>{if(!active)return;active=false;clearTimeout(timer);try{onSuccess(result);}catch(err){console.error('Admin UI:',err.message);onFailure({message:'Không hiển thị được dữ liệu. Hãy tải lại trang rồi thử lại.'});}}).withFailureHandler(fail);
+  runner[method](...args);
 }
 function adminError(err){const message=err.message||'Chưa tải được danh sách. Vui lòng thử lại.';if(/Phiên.*hết hạn/.test(message))clearAdmin(message);else $('admin-status').textContent=message;}
 /* The authenticated summary lives in this tab's memory only. Search/filter/paging make no RPC. */
@@ -288,9 +296,9 @@ function applyAdminIndex(index){adminItems=index.items;adminLoadedAt=index.at;ad
 function loadAdminList(fresh=false){
   if(!adminTicket||adminListLoading)return;const serial=++adminSerial;adminListLoading=true;$('admin-search').disabled=true;
   if(adminLoadedAt)renderAdminList();else $('admin-status').textContent='Đang tải danh sách…';
-  google.script.run.withSuccessHandler(index=>{if(serial!==adminSerial)return;adminListLoading=false;$('admin-search').disabled=false;applyAdminIndex(index);}).withFailureHandler(err=>{if(serial!==adminSerial)return;adminListLoading=false;$('admin-search').disabled=false;adminError(err);}).scheduleAdminSnapshot(token,adminTicket,fresh);
+  adminRead('scheduleAdminSnapshot',[token,adminTicket,fresh],index=>{if(serial!==adminSerial)return;adminListLoading=false;$('admin-search').disabled=false;applyAdminIndex(index);},err=>{if(serial!==adminSerial)return;adminListLoading=false;$('admin-search').disabled=false;adminError(err);});
 }
-$('admin-login').onsubmit=e=>{e.preventDefault();$('admin-login-button').disabled=true;$('admin-status').textContent='Đang xác thực và tải danh sách…';const password=$('admin-password').value;$('admin-password').value='';google.script.run.withSuccessHandler(result=>{adminTicket=result.ticket;adminExpires=result.expires;$('admin-login-button').disabled=false;$('admin-search').disabled=false;$('admin-login').hidden=true;$('admin-content').hidden=false;$('admin-logout').hidden=false;clearTimeout(adminTimer);adminTimer=setTimeout(()=>clearAdmin('Phiên quản trị đã hết hạn. Vui lòng đăng nhập lại.'),Math.max(0,adminExpires-Date.now()));if(result.index)applyAdminIndex(result.index);else loadAdminList();}).withFailureHandler(err=>{$('admin-login-button').disabled=false;adminError(err);}).scheduleAdminLogin(token,password);};
+$('admin-login').onsubmit=e=>{e.preventDefault();$('admin-login-button').disabled=true;$('admin-status').textContent='Đang xác thực và tải danh sách…';const password=$('admin-password').value;$('admin-password').value='';adminRead('scheduleAdminLogin',[token,password],result=>{adminTicket=result.ticket;adminExpires=result.expires;$('admin-login-button').disabled=false;$('admin-search').disabled=false;$('admin-login').hidden=true;$('admin-content').hidden=false;$('admin-logout').hidden=false;clearTimeout(adminTimer);adminTimer=setTimeout(()=>clearAdmin('Phiên quản trị đã hết hạn. Vui lòng đăng nhập lại.'),Math.max(0,adminExpires-Date.now()));if(result.index)applyAdminIndex(result.index);else loadAdminList();},err=>{$('admin-login-button').disabled=false;adminError(err);});};
 $('admin-filter').onsubmit=e=>{e.preventDefault();loadAdminList(true);};$('admin-query').oninput=()=>{adminVisible=50;renderAdminList();};$('admin-scope').onchange=()=>{adminVisible=50;renderAdminList();};$('admin-more').onclick=()=>{adminVisible+=50;renderAdminList();};
 $('admin-logout').onclick=()=>{if(sending)return;const ticket=adminTicket;clearAdmin('Đã đăng xuất quản trị.');google.script.run.withFailureHandler(()=>{}).scheduleAdminLogout(token,ticket);};
 $('admin-back').onclick=()=>{resetRegistration();showPortal('admin');renderAdminList();};
