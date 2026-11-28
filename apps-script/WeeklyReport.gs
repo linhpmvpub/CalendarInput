@@ -45,10 +45,10 @@ function weeklyModel_(events,week){
       const day=weeklyAddDay_(week,d),from=+weeklyMidnight_(day),to=from+86400000,dayStart=rows.length;
       const todays=items.filter(e=>+e.start<to&&+e.end>from);
       if(office&&!todays.length)continue;
-      const groups=[['Cả ngày',0,24,true],['Sáng',0,12,false],['Chiều',12,18,false],['Tối',18,24,false]];
+      const groups=[['Cả ngày',0,24,true],['Sáng',0,12,false],['Chiều',12,24,false]];
       groups.forEach(([label,a,b,allDay])=>{
         const list=todays.filter(e=>e.allDay===allDay&&(allDay||+e.start<from+b*3600000&&+e.end>from+a*3600000));
-        if(!list.length&&(allDay||label==='Tối'||office))return;
+        if(!list.length&&(allDay||office))return;
         const groupStart=rows.length;
         if(!list.length)add(['',label,'—','','']);
         list.forEach((e,i)=>{
