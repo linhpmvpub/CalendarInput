@@ -7,7 +7,7 @@ class Element{
  constructor(tag='div'){this.tagName=tag;this.children=[];this.dataset={};this.value='';this.hidden=false;this.disabled=false;this.checked=false;this.textContent='';this.classList={add(){},toggle(){}};all.push(this);}
  set id(id){this._id=id;nodes.set(id,this);}get id(){return this._id;}
  append(...nodes){this.children.push(...nodes);}replaceChildren(...nodes){this.children=nodes;}
- setAttribute(k,v){this[k]=v;}addEventListener(){}scrollIntoView(){}focus(){}select(){}
+ setAttribute(k,v){this[k]=v;}removeAttribute(k){delete this[k];}addEventListener(){}scrollIntoView(){}focus(){}select(){}
  querySelectorAll(sel){if(sel==='.option')return all.filter(n=>n.className==='option');if(sel==='input[name=mode]')return modes;
   if(sel.startsWith('input[data-group')){const group=sel.match(/data-group="([^"]+)"/)?.[1];return all.filter(n=>n.dataset.group&&(!group||n.dataset.group===group)&&(!sel.includes(':checked')||n.checked));}return [];}
  reset(){for(const e of Object.values(this.elements||{}))e.value='';this.elements.mode.value='fixed';all.filter(n=>n.dataset.group).forEach(n=>n.checked=false);}
@@ -20,7 +20,7 @@ const document={getElementById:id=>nodes.get(id),createElement:t=>new Element(t)
 const pending=[],timers=new Map();let timerId=0;
 function runner(ok,fail){return new Proxy({}, {get(t,k){if(k==='withSuccessHandler')return fn=>runner(fn,fail);if(k==='withFailureHandler')return fn=>runner(ok,fn);return (...args)=>pending.push({name:k,args,ok,fail});}});}
 class MockFormData{*[Symbol.iterator](){for(const [k,e] of Object.entries(form.elements))yield [k,e.value];yield ['website',''];yield ['date',nodes.get('date').value];yield ['startTime',nodes.get('start').value];yield ['endTime',nodes.get('end').value];}}
-const ctx={URL,document,google:{script:{get run(){return runner();}}},crypto,console,Intl,Date,Map,Set,FormData:MockFormData,setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),setInterval(){},navigator:{}};
+const ctx={URL,Blob,atob,Uint8Array,document,google:{script:{get run(){return runner();}}},crypto,console,Intl,Date,Map,Set,FormData:MockFormData,setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),setInterval(){},navigator:{}};
 vm.createContext(ctx);vm.runInContext(script,ctx);
 function take(name){const i=pending.findIndex(p=>p.name===name);assert.ok(i>=0,'Expected RPC '+name);return pending.splice(i,1)[0];}
 function done(name,data){take(name).ok(data);}const submit={preventDefault(){}};
@@ -61,3 +61,12 @@ const link=descend(meetingDetail).find(n=>n.tagName==='a');assert.equal(link.hre
 const beforeDetails=pending.length;const unsafe=ctx.overviewMeetingDetails({...meeting,documents:'javascript:alert(1)'},day);assert.ok(!descend(unsafe).some(n=>n.tagName==='a'));assert.equal(pending.length,beforeDetails);
 const old=ctx.overviewPeopleBlock({...meeting,specialistRolesKnown:false});assert.ok(descend(old).some(n=>n.textContent==='Chuyên viên'));assert.ok(!descend(old).some(n=>n.textContent==='CV chủ trì'));
 console.log('Weekly UI passed: full timeline render, office/staff roles, inline native details, safe links/text, legacy roles and no detail RPC.');
+
+// Export requires admin login and freezes the chosen week/leader at click time.
+nodes.get('admin-logout').onclick();nodes.get('overview-leader').value='Lãnh đạo thử';nodes.get('overview-pdf').onclick();assert.equal(nodes.get('pdf-auth').hidden,false);assert.ok(!pending.some(p=>p.name==='scheduleAdminExportPdf'));
+nodes.get('pdf-password').value='fixture-password';nodes.get('pdf-auth').onsubmit(submit);const loginPdf=take('scheduleAdminLogin');assert.equal(loginPdf.args[2],true);assert.equal(nodes.get('pdf-password').value,'');
+nodes.get('overview-leader').value='';loginPdf.ok({ticket:'p'.repeat(72),expires:Date.now()+1800000});const exportPdf=take('scheduleAdminExportPdf');assert.equal(exportPdf.args[3],'Lãnh đạo thử');assert.equal(exportPdf.args[1],'p'.repeat(72));
+exportPdf.ok({filename:'fixture.pdf',mime:'application/pdf',base64:Buffer.from('%PDF-1.4 fixture').toString('base64')});assert.equal(nodes.get('pdf-download').hidden,false);assert.equal(nodes.get('pdf-download').download,'fixture.pdf');assert.match(nodes.get('pdf-download').href,/^blob:/);
+nodes.get('admin-logout').onclick();assert.equal(nodes.get('pdf-download').hidden,true);assert.equal(nodes.get('pdf-download').href,undefined);
+nodes.get('overview-pdf').onclick();nodes.get('pdf-password').value='wrong';nodes.get('pdf-auth').onsubmit(submit);take('scheduleAdminLogin').fail({message:'Mã quản trị không đúng.'});assert.match(nodes.get('pdf-status').textContent,/không đúng/);assert.equal(nodes.get('overview-pdf').disabled,false);assert.ok(!pending.some(p=>p.name==='scheduleAdminExportPdf'));
+console.log('PDF UI passed: login gate, password clearing, filter snapshot, direct download, logout cleanup and wrong-password handling.');
