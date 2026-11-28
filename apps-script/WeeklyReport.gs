@@ -138,10 +138,10 @@ function weeklyPdfHtml_(week,leader,events){
     const day=weeklyAddDay_(week,d),lo=+weeklyMidnight_(day),hi=lo+86400000;
     const list=events.filter(e=>+new Date(e.start)<hi&&+new Date(e.end)>lo).sort((a,b)=>+new Date(a.start)-new Date(b.start)||a.title.localeCompare(b.title,'vi'));
     // Keep each day's rowspans in its own row group. Group sessions before merging.
-    const sessions=['Cả ngày','Sáng','Chiều','Tối'].map(label=>({label,items:[]}));
+    const sessions=['Cả ngày','Sáng','Chiều'].map(label=>({label,items:[]}));
     for(const event of list){
       const time=Utilities.formatDate(new Date(Math.max(lo,+new Date(event.start))),WR.tz,'HH:mm');
-      const label=event.allDay?'Cả ngày':time<'12:00'?'Sáng':time<'18:00'?'Chiều':'Tối';
+      const label=event.allDay?'Cả ngày':time<'12:00'?'Sáng':'Chiều';
       sessions.find(group=>group.label===label).items.push({event,time});
     }
     if(!list.length)continue;
