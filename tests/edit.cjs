@@ -136,3 +136,24 @@ const fixture=[{id:'1',title:'Họp Đông Hà',province:'Nguyễn A',status:'Đ
 assert.deepEqual([...client.adminFilteredItems(fixture,'dong ha','all','2026-11-27')].map(i=>i.id),['1']);assert.deepEqual([...client.adminFilteredItems(fixture,'','waiting','2026-11-27')].map(i=>i.id),['2']);assert.equal(client.adminFilteredItems(fixture,'','current','2026-11-27').length,2);
 const handlers=html.slice(html.indexOf("$('admin-filter').onsubmit"),html.indexOf("$('admin-logout').onclick"));assert.ok(!handlers.includes('scheduleAdminList'));assert.match(handlers,/oninput=.*renderAdminList/);
 console.log('Fast admin tests passed: cold summary reads='+coldReads+', warm list/search=0 Sheet and 0 Calendar reads; authenticated cache, safe row hints, invalidation, refresh, and client search.');
+
+// PDF authorization must run before Calendar reads or conversion.
+
+const realOverview=context.scheduleOverview;let pdfReads=0,pdfConversions=0,pdfHtml='';
+const pdfEvent={title:'Họp rà soát tiến độ dự án và giải quyết kiến nghị <script>không chạy</script>',province:['Nguyễn A'],office:['Trần B'],specialists:['Lê C'],specialistLead:['Lê C'],specialistSupport:[],specialistRolesKnown:true,participantsKnown:true,start:'2026-12-01T01:00:00.000Z',end:'2026-12-01T04:30:00.000Z',location:'Phòng họp tầng 3'};
+context.scheduleOverview=week=>{pdfReads++;assert.equal(week,'2026-11-30');return {busy:[pdfEvent,{...pdfEvent,title:'Lịch riêng B',province:['Nguyễn B']},{...pdfEvent,title:'Lịch chưa rõ thành phần',province:[],participantsKnown:false}]};};
+const priorBlob=context.Utilities.newBlob;context.Utilities.newBlob=(html,mime)=>{pdfConversions++;assert.equal(mime,'text/html');pdfHtml=html;return {getAs:m=>{assert.equal(m,'application/pdf');return {getBytes:()=>[...Buffer.from('%PDF-1.4 fixture')]};}};};context.Utilities.base64Encode=bytes=>Buffer.from(bytes).toString('base64');
+assert.throws(()=>context.scheduleAdminExportPdf(token,'bad','2026-12-01',''),/hết hạn/);assert.equal(pdfReads,0);assert.equal(pdfConversions,0);
+assert.throws(()=>context.scheduleAdminExportPdf(otherToken,perfTicket,'2026-12-01',''),/hết hạn/);assert.equal(pdfReads,0);
+const light=context.scheduleAdminLogin(token,adminPassword,true);assert.equal(light.index,undefined);assert.equal(pdfReads,0);
+const pdf=context.scheduleAdminExportPdf(token,light.ticket,'2026-12-01','Nguyễn A');assert.equal(pdf.mime,'application/pdf');assert.match(pdf.filename,/2026-11-30-Nguyen-A.pdf$/);assert.ok(Buffer.from(pdf.base64,'base64').toString().startsWith('%PDF-'));
+assert.ok(pdfHtml.includes('Lịch chưa rõ thành phần'));assert.ok(!pdfHtml.includes('Lịch riêng B'));assert.ok(pdfHtml.includes('&lt;script&gt;'));assert.ok(!pdfHtml.includes('<script>'));assert.ok(pdfHtml.includes('08h00:'));assert.ok(!pdfHtml.includes('11h30'));assert.ok(pdfHtml.includes('Lê C'));
+for(const omitted of ['Giờ trống','Xem chi tiết','Mã quản trị','Người đăng ký','Tự cập nhật','Ghi chú xử lý'])assert.ok(!pdfHtml.includes(omitted));
+context.scheduleAdminExportPdf(token,light.ticket,'2026-12-01','');assert.ok(pdfHtml.includes('Lịch riêng B'));
+assert.throws(()=>context.scheduleAdminExportPdf(token,light.ticket,'2026-12-01','Unknown'),/không hợp lệ/);
+context.scheduleOverview=()=>({busy:[]});assert.throws(()=>context.scheduleAdminExportPdf(token,light.ticket,'2026-12-01',''),/Không có lịch/);
+context.scheduleAdminLogout(token,light.ticket);assert.throws(()=>context.scheduleAdminExportPdf(token,light.ticket,'2026-12-01',''),/hết hạn/);
+context.scheduleOverview=realOverview;context.Utilities.newBlob=priorBlob;
+// Optional fixture for visual inspection of the exact server template.
+if(process.env.PDF_FIXTURE){const events=Array.from({length:20},(_,i)=>({...pdfEvent,title:'Cuộc họp '+(i+1)+': Rà soát tiến độ triển khai các dự án, giải quyết kiến nghị của các sở, ngành và địa phương; xem xét các phương án phối hợp thực hiện nhiệm vụ trong tuần.',start:'2026-12-0'+(1+i%4)+'T01:00:00.000Z',end:'2026-12-0'+(1+i%4)+'T04:30:00.000Z',office:['Phó Chánh Văn phòng Nguyễn Văn Thử'],specialistSupport:['Bà Trần Thị Thử','Ông Nguyễn Văn Thử']}));fs.writeFileSync(process.env.PDF_FIXTURE,context.weeklyPdfHtml_('2026-11-30','Nguyễn A',events));}
+console.log('PDF tests passed: server authorization, session binding/revocation, lightweight login, exact leader filter including unknown entries, content-only template, escaping, PDF signature and empty results.');
