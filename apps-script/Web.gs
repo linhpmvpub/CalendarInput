@@ -123,8 +123,26 @@ function webVerifyDates_(sheet,row,headers,record){
 }
 
 function scheduleAvailability(day,selection) {return calendarView_(day,selection,false);}
-// Public week overview returns only times, meeting titles and provincial leaders.
+// Public week overview includes explicit meeting fields; never return raw descriptions or private metadata.
 function scheduleOverview(day) {return calendarView_(day,{province:[],office:[],specialists:[]},true);}
+function overviewDetails_(event){
+  const clean={...event,description:weeklyPlain_(event.description)},people=weeklyPeople_(clean);
+  const lines=clean.description.split(/\r?\n/).map(line=>line.trim());
+  const field=(labels,limit)=>{
+    for(const label of labels){const line=lines.find(s=>s.toLocaleLowerCase('vi').startsWith(label.toLocaleLowerCase('vi')+':'));if(line!==undefined)return line.slice(label.length+1).trim().slice(0,limit);}
+    return '';
+  };
+  // Legacy lists have no inferred lead. Explicit roles supplement Calendar imports.
+  const lead=parsePeople_(field([SPECIALIST_ROLES.specialistLead],2000));
+  const support=parsePeople_(field([SPECIALIST_ROLES.specialistSupport],4000));
+  const specialists=[...new Set([...lead,...people.specialists,...support])];
+  const roles=specialistRoles_({},clean,specialists);
+  const rolesKnown=Object.values(SPECIALIST_ROLES).some(label=>lines.some(s=>s.startsWith(label+':')));
+  return {office:people.office,specialists:[...roles.specialistLead,...roles.specialistSupport],
+    specialistLead:roles.specialistLead,specialistSupport:roles.specialistSupport,specialistRolesKnown:rolesKnown,
+    location:weeklyPlain_(event.location).slice(0,2000),registrant:field(['Người đăng ký'],120),
+    unit:field([Q.unit],300),documents:field(['Tài liệu',Q.docs],2000)};
+}
 function calendarView_(day,selection,includeFree) {
   const start=webDate_(day+'T00:00'),end=new Date(+start+7*86400000);
   if(!selection||typeof selection!=='object')throw Error('Thành phần không hợp lệ.');
@@ -152,7 +170,7 @@ function calendarView_(day,selection,includeFree) {
         if(line){const names=parsePeople_(line.slice(Q.province.length+1));CONFIG.province.forEach(n=>{if(names.includes(n))province.push(n);});}
       }
       const color=colorEvent_(e);
-      busy.push({blocksTime,transparent:e.transparency==='transparent',color:color?{...color,...COLOR_STYLE[color.id]}:null,start:a.toISOString(),end:b.toISOString(),title:String(e.summary||'(Chưa có nội dung)').slice(0,5000),province,participantsKnown:Array.isArray(others)||province.length>0,endEstimated:props.endEstimated==='true',allDay:!e.start.dateTime});
+      busy.push({...(includeFree?overviewDetails_(e):{}),blocksTime,transparent:e.transparency==='transparent',color:color?{...color,...COLOR_STYLE[color.id]}:null,start:a.toISOString(),end:b.toISOString(),title:String(e.summary||'(Chưa có nội dung)').slice(0,5000),province,participantsKnown:Array.isArray(others)||province.length>0,endEstimated:props.endEstimated==='true',allDay:!e.start.dateTime});
     }
     pageToken=result.nextPageToken;pages++;
     if(pageToken&&pages>=4)throw Error('Lịch có quá nhiều sự kiện. Vui lòng liên hệ bộ phận tổng hợp.');
