@@ -140,5 +140,5 @@ assert.equal(sessions[0].label,'Sáng');assert.equal(sessions[0].events.length,2
 assert.equal(sessions[1].label,'Chiều');assert.equal(sessions[1].events.length,1);
 assert.equal(sessions.length,2);
 sessions=ui.overviewSessions([{...ev[0],allDay:true},event('evening','20:00','21:00',['A'])],'2026-12-01');
-assert.equal(sessions[0].label,'Cả ngày');assert.equal(sessions[0].events.length,1);assert.equal(sessions[1].events.length,0);assert.equal(sessions[2].events.length,0);assert.equal(sessions[3].label,'Tối');
-console.log('Flat timeline checks passed: morning/afternoon/evening, noon boundaries, spanning meetings, all-day grouping and empty sessions.');
+assert.equal(sessions[0].label,'Cả ngày');assert.equal(sessions[0].events.length,1);assert.equal(sessions[1].events.length,0);assert.equal(sessions[2].events.length,1);assert.equal(sessions[2].label,'Chiều');assert.equal(sessions.length,3);
+console.log('Flat timeline checks passed: morning/afternoon including evening, noon boundaries, spanning meetings, all-day grouping and empty sessions.');
