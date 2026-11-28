@@ -141,7 +141,7 @@ function editUpdate_(token,code,revision,operation,data,adminId){
       }
     }
     return editFinish_(ref,tx,updated);
-  }finally{lock.releaseLock();}
+  }finally{lock.releaseLock();if(typeof tgCaptureSafe_==='function')tgCaptureSafe_();}
 }
 
 /* Administrative sessions are server-side, short lived and bound to the bootstrap session.
