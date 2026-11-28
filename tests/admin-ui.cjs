@@ -70,3 +70,12 @@ exportPdf.ok({filename:'fixture.pdf',mime:'application/pdf',base64:Buffer.from('
 nodes.get('admin-logout').onclick();assert.equal(nodes.get('pdf-download').hidden,true);assert.equal(nodes.get('pdf-download').href,undefined);
 nodes.get('overview-pdf').onclick();nodes.get('pdf-password').value='wrong';nodes.get('pdf-auth').onsubmit(submit);take('scheduleAdminLogin').fail({message:'Mã quản trị không đúng.'});assert.match(nodes.get('pdf-status').textContent,/không đúng/);assert.equal(nodes.get('overview-pdf').disabled,false);assert.ok(!pending.some(p=>p.name==='scheduleAdminExportPdf'));
 console.log('PDF UI passed: login gate, password clearing, filter snapshot, direct download, logout cleanup and wrong-password handling.');
+
+// Telegram configuration uses the existing admin session and clears the credential immediately.
+vm.runInContext("adminTicket='test-ticket';adminExpires=Date.now()+60000",ctx);
+nodes.get('tg-token').value='fake-token-for-ui-test';nodes.get('tg-setup').onsubmit({preventDefault(){}});
+const setupTelegram=take('scheduleTelegramSetup');assert.equal(setupTelegram.args[1],'test-ticket');assert.equal(setupTelegram.args[2],'fake-token-for-ui-test');assert.equal(nodes.get('tg-token').value,'');
+setupTelegram.ok({configured:true,enabled:false,username:'schedule_bot',pairUrl:'https://t.me/schedule_bot?start=abc123'});assert.equal(nodes.get('tg-pair').hidden,false);assert.equal(nodes.get('tg-link').href,'https://t.me/schedule_bot?start=abc123');
+nodes.get('tg-connect').onclick();take('scheduleTelegramConnect').ok({configured:true,enabled:true,recipient:'Linh',username:'schedule_bot'});assert.equal(nodes.get('tg-pair').hidden,true);assert.equal(nodes.get('tg-stop').hidden,false);
+vm.runInContext("clearAdmin('Done')",ctx);assert.equal(nodes.get('tg-token').value,'');assert.equal(nodes.get('tg-pair').hidden,true);
+console.log('Telegram UI passed: admin ticket, credential clearing, private pairing link, connect state and logout cleanup.');
