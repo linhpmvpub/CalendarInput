@@ -20,7 +20,7 @@ const document={getElementById:id=>nodes.get(id),createElement:t=>new Element(t)
 const pending=[],timers=new Map();let timerId=0;
 function runner(ok,fail){return new Proxy({}, {get(t,k){if(k==='withSuccessHandler')return fn=>runner(fn,fail);if(k==='withFailureHandler')return fn=>runner(ok,fn);return (...args)=>pending.push({name:k,args,ok,fail});}});}
 class MockFormData{*[Symbol.iterator](){for(const [k,e] of Object.entries(form.elements))yield [k,e.value];yield ['website',''];yield ['date',nodes.get('date').value];yield ['startTime',nodes.get('start').value];yield ['endTime',nodes.get('end').value];}}
-const ctx={document,google:{script:{get run(){return runner();}}},crypto,console,Intl,Date,Map,Set,FormData:MockFormData,setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),setInterval(){},navigator:{}};
+const ctx={URL,document,google:{script:{get run(){return runner();}}},crypto,console,Intl,Date,Map,Set,FormData:MockFormData,setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),setInterval(){},navigator:{}};
 vm.createContext(ctx);vm.runInContext(script,ctx);
 function take(name){const i=pending.findIndex(p=>p.name===name);assert.ok(i>=0,'Expected RPC '+name);return pending.splice(i,1)[0];}
 function done(name,data){take(name).ok(data);}const submit={preventDefault(){}};
@@ -48,3 +48,16 @@ slow.ok({ticket:'late',expires:Date.now()+1800000,index:{items:[item],at:Date.no
 // Errors in success-handler rendering are surfaced, not left at “loading”.
 nodes.get('admin-password').value='fixture-password';nodes.get('admin-login').onsubmit(submit);const malformed=take('scheduleAdminLogin');malformed.ok({ticket:'s'.repeat(72),expires:Date.now()+1800000,index:{items:null,at:Date.now()}});assert.match(nodes.get('admin-status').textContent,/Không hiển thị được dữ liệu/);
 console.log('Admin UI failure handling passed: timed-out reads unlock controls, stale responses ignored, rendering failures visible.');
+
+// Render the real weekly timeline with the enriched API contract.
+const meeting={title:'Họp <script>không chạy</script>',start:day+'T08:00:00+07:00',end:day+'T09:00:00+07:00',province:['Lãnh đạo thử'],office:['VP thử'],specialists:['CV chủ trì thử','CV phối hợp thử'],specialistLead:['CV chủ trì thử'],specialistSupport:['CV phối hợp thử'],specialistRolesKnown:true,location:'Phòng thử',registrant:'Người thử',documents:'https://example.test/doc',participantsKnown:true,blocksTime:true};
+nodes.get('portal-overview').onclick();done('scheduleOverview',{busy:[meeting],updatedAt:new Date().toISOString()});
+const descend=n=>[n,...n.children.flatMap(descend)];
+const timeline=descend(nodes.get('overview-days'));const meetingDetail=timeline.find(n=>n.tagName==='details');assert.ok(meetingDetail);
+assert.equal(meetingDetail.children[0].tagName,'summary');assert.equal(meetingDetail.children[0].children[0].textContent,meeting.title);
+const texts=descend(meetingDetail).map(n=>n.textContent).join(' ');for(const text of ['Phòng thử','VP thử','CV chủ trì thử','CV phối hợp thử','Người thử'])assert.ok(texts.includes(text));
+const people=timeline.find(n=>n.className==='timeline-people');assert.ok(descend(people).some(n=>n.textContent==='VP thử'));
+const link=descend(meetingDetail).find(n=>n.tagName==='a');assert.equal(link.href,'https://example.test/doc');assert.equal(link.rel,'noopener noreferrer');
+const beforeDetails=pending.length;const unsafe=ctx.overviewMeetingDetails({...meeting,documents:'javascript:alert(1)'},day);assert.ok(!descend(unsafe).some(n=>n.tagName==='a'));assert.equal(pending.length,beforeDetails);
+const old=ctx.overviewPeopleBlock({...meeting,specialistRolesKnown:false});assert.ok(descend(old).some(n=>n.textContent==='Chuyên viên'));assert.ok(!descend(old).some(n=>n.textContent==='CV chủ trì'));
+console.log('Weekly UI passed: full timeline render, office/staff roles, inline native details, safe links/text, legacy roles and no detail RPC.');
