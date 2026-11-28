@@ -83,6 +83,8 @@ h1,h2,h3,.hint,.cal-filter,.cal-foot,.flex-note,.weekday,.success-card p{overflo
 
 .admin-panel{min-width:0}.admin-login{max-width:500px}.admin-tools{display:grid;grid-template-columns:minmax(0,1fr) 210px auto;gap:12px;align-items:end;margin:16px 0}.admin-list{border:1px solid var(--line);background:white}.admin-row{display:grid;grid-template-columns:145px minmax(0,1fr) 150px auto;gap:16px;align-items:center;border-bottom:1px solid var(--line);padding:16px;min-width:0}.admin-row:last-child{border:0}.admin-row>div{min-width:0;overflow-wrap:anywhere}.admin-row h3{font-size:14px;white-space:pre-wrap}.admin-row time{font-size:13px;font-variant-numeric:tabular-nums}.admin-row .hint{white-space:pre-line}.admin-top{display:flex;align-items:center;justify-content:space-between;gap:12px}.admin-status{font-size:13px;white-space:pre-line;margin:12px 0;color:var(--muted)}.admin-panel .secondary,.admin-panel .primary{min-height:44px}.admin-panel input,.admin-panel select{min-height:44px}.portal-nav{flex-wrap:wrap;gap:18px}.admin-more{margin-top:16px}
 @media(max-width:700px){.admin-tools{grid-template-columns:minmax(0,1fr)}.admin-row{grid-template-columns:minmax(0,1fr);gap:8px;padding:14px}.admin-row .secondary{justify-self:start}.admin-top{align-items:flex-start}.admin-panel input,.admin-panel select{font-size:16px}.portal-nav{gap:12px}.portal-nav button{font-size:12px}}
+
+.timeline-content details{min-width:0}.timeline-content summary{display:block;min-height:44px;padding:0;list-style:none;background:transparent;border:0;border-radius:2px}.timeline-content summary::before{content:none}.timeline-content details[open] summary{background:transparent;border:0}.timeline-content summary h4{color:#173f38}.timeline-content summary:hover h4{text-decoration:underline;text-underline-offset:3px}.timeline-detail-hint{display:block;color:#70877e;font-size:10px;margin-top:4px;font-weight:400}.timeline-detail-hint::after{content:'Xem chi tiết ＋'}.timeline-content details[open] .timeline-detail-hint::after{content:'Thu gọn −'}.timeline-detail{margin:12px 0 0;padding-top:10px;border-top:1px solid #dce7e1;display:grid;gap:9px;font-size:12px;line-height:1.65;overflow-wrap:anywhere}.timeline-detail dt{font-size:10px;color:#6c8177;font-weight:650}.timeline-detail dd{margin:1px 0 0;white-space:pre-wrap}.timeline-detail a{color:#146d65;text-decoration:underline;overflow-wrap:anywhere}.timeline-people{white-space:normal}.timeline-person-group+.timeline-person-group{margin-top:8px}.timeline-person-label{display:block;font-size:10px;font-weight:650;color:#7b8c84}.timeline-person-names{white-space:pre-line}.timeline-person-group.province .timeline-person-names{color:#294d40}
 </style></head><body><div class="wrap">
 <header class="hero"><div><div class="eyebrow">ĐĂNG KÝ & SẮP XẾP LỊCH</div><h1>Cổng đăng ký lịch công tác tuần UBND tỉnh Quảng Trị</h1><p class="subtitle">Chọn thành phần, xem giờ trống và gửi lịch công tác.</p></div><span class="zone"><i class="dot"></i> Giờ Việt Nam · UTC+7</span></header>
 <div id="loading" class="card loading" role="status">Đang chuẩn bị form đăng ký…</div>
@@ -95,8 +97,8 @@ h1,h2,h3,.hint,.cal-filter,.cal-foot,.flex-note,.weekday,.success-card p{overflo
 <section id="overview" class="overview" aria-labelledby="overview-title" hidden>
 <div class="card card-pad"><div class="overview-head"><div><h2 id="overview-title">Lịch công tác tuần</h2><p class="hint">Xem nội dung cuộc họp, lãnh đạo tham dự và khung giờ còn trống.</p></div><button type="button" class="secondary" id="overview-refresh">Làm mới</button></div>
 <div class="overview-controls"><label class="field">Chọn ngày trong tuần<input type="date" id="overview-date"></label><label class="field">Lọc Lãnh đạo UBND tỉnh<select id="overview-leader"><option value="">Tất cả lãnh đạo</option></select></label><div class="overview-nav"><button type="button" class="secondary" id="overview-prev" aria-label="Tuần trước">←</button><button type="button" class="secondary" id="overview-today">Tuần này</button><button type="button" class="secondary" id="overview-next" aria-label="Tuần sau">→</button></div></div>
-<p id="overview-range" class="overview-range"></p><p id="overview-meta" class="overview-meta"></p><p class="hint overview-note">Giờ trống tham khảo 07:00–18:00 · Lịch chờ chưa lên Calendar không hiển thị · Lịch chưa rõ thành phần cần kiểm tra.</p></div>
-<p id="overview-status" class="overview-status" role="status"></p><div id="overview-table-head" class="overview-table-head" aria-hidden="true" hidden><span>Thứ / ngày</span><span>Buổi</span><span>Giờ</span><span>Nội dung công việc</span><span>Lãnh đạo UBND tỉnh</span></div><div id="overview-days" class="overview-days"></div>
+<p id="overview-range" class="overview-range"></p><p id="overview-meta" class="overview-meta"></p><p class="hint overview-note">Bấm vào nội dung cuộc họp để xem chi tiết · Giờ trống chỉ xét Lãnh đạo UBND tỉnh · Lịch chờ chưa lên Calendar không hiển thị.</p></div>
+<p id="overview-status" class="overview-status" role="status"></p><div id="overview-table-head" class="overview-table-head" aria-hidden="true" hidden><span>Thứ / ngày</span><span>Buổi</span><span>Giờ</span><span>Nội dung công việc</span><span>Thành phần tham dự</span></div><div id="overview-days" class="overview-days"></div>
 </section><div id="registration-panel"><nav class="mobile-tabs" aria-label="Chuyển phần hiển thị"><button type="button" id="tab-form" class="active" aria-pressed="true">Đăng ký</button><button type="button" id="tab-calendar" aria-pressed="false">Xem lịch & giờ trống</button></nav>
 <div class="layout" id="layout" data-view="form"><div class="form-side"><div id="message" class="notice" role="alert" hidden></div>
 <details class="card edit-access" id="edit-access"><summary>Chỉnh sửa lịch đã đăng ký</summary><form id="edit-lookup"><label class="field" for="edit-code">Mã chỉnh sửa riêng<textarea id="edit-code" class="edit-code" rows="3" required maxlength="160" autocomplete="off" spellcheck="false" placeholder="Dán mã chỉnh sửa đã nhận sau khi đăng ký"></textarea></label><p class="hint">Mã này cho phép sửa đăng ký. Chỉ chia sẻ với người được phép chỉnh sửa. Với lịch đăng ký trước đây hoặc mất mã, liên hệ bộ phận tổng hợp để lấy mã trong Sheet.</p><div id="edit-status" class="edit-status" role="status"></div><button class="primary" id="edit-open" type="submit">Mở lịch</button></form></details>
@@ -189,6 +191,37 @@ function loadOverview(){
   google.script.run.withSuccessHandler(result=>{if(serial!==overviewSerial)return;overviewData=result;overviewLoading=false;$('overview-refresh').disabled=false;renderOverview();}).withFailureHandler(()=>{if(serial!==overviewSerial)return;overviewLoading=false;overviewError='Chưa tải được lịch tuần. Bấm Làm mới để thử lại; hiện chưa thể xác định khung giờ trống.';$('overview-refresh').disabled=false;renderOverview();}).scheduleOverview(overviewWeek);
 }
 function overviewNode(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;}
+function overviewPeopleBlock(event){
+  const root=overviewNode('div','timeline-people');
+  const group=(label,names,cls)=>{if(!names.length)return;const block=overviewNode('div','timeline-person-group '+(cls||''));block.append(overviewNode('span','timeline-person-label',label),overviewNode('span','timeline-person-names',names.join('\n')));root.append(block);};
+  group('Lãnh đạo UBND tỉnh',event.province||[],'province');
+  if(!event.province.length)group('Lãnh đạo UBND tỉnh',[event.participantsKnown?'Không có trong thành phần đăng ký':'Chưa rõ thành phần']);
+  group('Lãnh đạo Văn phòng',event.office||[]);
+  if(event.specialistRolesKnown){group('CV chủ trì',event.specialistLead||[]);group('CV phối hợp',event.specialistSupport||[]);}
+  else group('Chuyên viên',event.specialists||[]);
+  return root;
+}
+function overviewMeetingDetails(event,day){
+  const details=overviewNode('details'),summary=overviewNode('summary');
+  summary.append(overviewNode('h4','',event.title),overviewNode('span','timeline-detail-hint'));details.append(summary);
+  const fields=overviewNode('dl','timeline-detail');
+  const field=(label,value)=>{const block=overviewNode('div');block.append(overviewNode('dt','',label),overviewNode('dd','',value||'Chưa cập nhật'));fields.append(block);};
+  const names=values=>(values||[]).join('\n');
+  field('Thời gian',event.allDay?dateLabel(vnDay(new Date(event.start)))+' · Cả ngày'+(vnDay(new Date(+new Date(event.end)-1))!==vnDay(new Date(event.start))?' → '+dateLabel(vnDay(new Date(+new Date(event.end)-1))):''):dateLabel(day)+' · '+overviewTime(event,day));
+  field('Địa điểm',event.location);field('Lãnh đạo UBND tỉnh',names(event.province));field('Lãnh đạo Văn phòng UBND tỉnh',names(event.office));
+  if(event.specialistRolesKnown){field('Chuyên viên chủ trì',names(event.specialistLead));field('Chuyên viên phối hợp',names(event.specialistSupport));}
+  else field('Chuyên viên',names(event.specialists));
+  if(event.registrant)field('Người đăng ký',event.registrant);if(event.unit)field('Đơn vị đăng ký',event.unit);
+  if(event.documents){
+    const block=overviewNode('div'),value=overviewNode('dd');block.append(overviewNode('dt','','Tài liệu liên quan'),value);
+    // Only web links may be opened. Never render Calendar text as HTML.
+    let url;try{url=new URL(event.documents);}catch(ignore){}
+    if(url&&['https:','http:'].includes(url.protocol)){const link=overviewNode('a','',event.documents);link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';value.append(link);}else value.textContent=event.documents;
+    fields.append(block);
+  }
+  if(event.endEstimated)field('Giờ kết thúc','Mặc định hết buổi');if(event.transparent)field('Tình trạng','Không chặn khung giờ');
+  details.append(fields);return details;
+}
 function renderOverview(){
   const root=$('overview-days');root.replaceChildren();const status=$('overview-status'),leader=$('overview-leader').value;
   $('overview-range').textContent=dateLabel(overviewWeek)+' — '+dateLabel(addDays(overviewWeek,6));
@@ -205,10 +238,9 @@ function renderOverview(){
         const row=overviewNode('article','timeline-entry'),time=overviewNode('div','timeline-time');
         time.setAttribute('aria-label',overviewTime(e,day));time.append(overviewNode('time','',e.allDay?'Cả ngày':clock(new Date(e.start))));
         if(!e.allDay){if(vnDay(new Date(e.start))!==day)time.append(overviewNode('small','',dateLabel(vnDay(new Date(e.start)))));time.append(overviewNode('small','','→ '+clock(new Date(e.end))+(vnDay(new Date(e.end))!==day?' '+dateLabel(vnDay(new Date(e.end))):'')));}
-        const content=overviewNode('div','timeline-content');content.append(overviewNode('h4','',e.title));
+        const content=overviewNode('div','timeline-content');content.append(overviewMeetingDetails(e,day));
         if(e.transparent||e.endEstimated)content.append(overviewNode('p','timeline-flags',e.transparent?'Không chặn giờ':'Kết thúc mặc định hết buổi'));
-        const names=e.province.length?e.province.join('\n'):e.participantsKnown?'Không có Lãnh đạo UBND tỉnh tham dự.':'Chưa rõ lãnh đạo tham dự';
-        row.append(time,content,overviewNode('p','timeline-people'+(!e.participantsKnown?' timeline-unknown':''),names));list.append(row);
+        row.append(time,content,overviewPeopleBlock(e));list.append(row);
       }
       if(!group.events.length)list.append(overviewNode('p','timeline-empty','— Chưa có lịch'));
       session.append(list);body.append(session);
