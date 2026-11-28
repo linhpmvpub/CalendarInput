@@ -170,6 +170,7 @@ function syncCalendarToSheet_(){
   finally{
     lock.releaseLock();
     // Render the weekly view after releasing the registration lock.
+    if(ss&&typeof tgCaptureSafe_==='function')tgCaptureSafe_();
     if(ss&&typeof weeklyReportRefresh_==='function')weeklyReportRefresh_(ss);
   }
 }
