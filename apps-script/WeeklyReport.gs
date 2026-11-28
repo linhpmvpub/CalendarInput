@@ -137,14 +137,23 @@ function weeklyPdfHtml_(week,leader,events){
   for(let d=0;d<7;d++){
     const day=weeklyAddDay_(week,d),lo=+weeklyMidnight_(day),hi=lo+86400000;
     const list=events.filter(e=>+new Date(e.start)<hi&&+new Date(e.end)>lo).sort((a,b)=>+new Date(a.start)-new Date(b.start)||a.title.localeCompare(b.title,'vi'));
+    // Keep each day's rowspans in its own row group. Group sessions before merging.
+    const sessions=['Cả ngày','Sáng','Chiều','Tối'].map(label=>({label,items:[]}));
     for(const event of list){
-      const start=new Date(Math.max(lo,+new Date(event.start))),time=Utilities.formatDate(start,WR.tz,'HH:mm');
-      const session=event.allDay?'Cả ngày':time<'12:00'?'Sáng':time<'18:00'?'Chiều':'Tối';
+      const time=Utilities.formatDate(new Date(Math.max(lo,+new Date(event.start))),WR.tz,'HH:mm');
+      const label=event.allDay?'Cả ngày':time<'12:00'?'Sáng':time<'18:00'?'Chiều':'Tối';
+      sessions.find(group=>group.label===label).items.push({event,time});
+    }
+    if(!list.length)continue;
+    rows+='<tbody>';let firstDay=true;
+    for(const group of sessions){let firstSession=true;for(const {event,time} of group.items){
       const parts=[];const add=(label,names)=>{if(names&&names.length)parts.push('<b>'+esc(label)+':</b> '+text(names.join(', ')));};
       add('LĐ UBND tỉnh',event.province);add('LĐVP',event.office);
       if(event.specialistRolesKnown){add('CV chủ trì',event.specialistLead);add('CV phối hợp',event.specialistSupport);}else add('CV',event.specialists);
-      rows+='<tr><td class="day">'+weekdays[d]+'<br>'+date(day)+'</td><td class="session">'+session+'</td><td><b>'+(event.allDay?'':time.replace(':','h')+': ')+'</b>'+text(event.title)+'</td><td>'+text(event.location)+'</td><td>'+parts.join('<br>')+'</td></tr>';
-    }
+      rows+='<tr>'+(firstDay?'<td class="day" rowspan="'+list.length+'">'+weekdays[d]+'<br>'+date(day)+'</td>':'')+(firstSession?'<td class="session" rowspan="'+group.items.length+'">'+group.label+'</td>':'')+'<td><b>'+(event.allDay?'':time.replace(':','h')+': ')+'</b>'+text(event.title)+'</td><td>'+text(event.location)+'</td><td>'+parts.join('<br>')+'</td></tr>';
+      firstDay=false;firstSession=false;
+    }}
+    rows+='</tbody>';
   }
-  return '<!doctype html><html lang="vi"><head><meta charset="utf-8"><style>@page{size:A4 landscape;margin:12mm}body{font-family:"Times New Roman","Liberation Serif",serif;font-size:11pt;color:#111}h1{text-align:center;font-size:16pt;margin:0 0 5pt}p{text-align:center;margin:0 0 5pt}table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:12pt}thead{display:table-header-group}th,td{border:1px solid #666;padding:6pt;vertical-align:top;overflow-wrap:anywhere;word-wrap:break-word}th{background:#eee;text-align:center;font-weight:bold}tr{page-break-inside:avoid;break-inside:avoid}.day,.session{text-align:center}.day{font-weight:bold}</style></head><body><h1>LỊCH CÔNG TÁC TUẦN UBND TỈNH QUẢNG TRỊ</h1><p>Từ ngày '+date(week)+' đến ngày '+date(weeklyAddDay_(week,6))+'</p>'+(leader?'<p><b>'+esc(leader)+'</b></p>':'')+'<table><colgroup><col style="width:10%"><col style="width:6%"><col style="width:39%"><col style="width:16%"><col style="width:29%"></colgroup><thead><tr><th>Thứ / ngày</th><th>Buổi</th><th>Nội dung công việc</th><th>Địa điểm</th><th>Thành phần tham dự</th></tr></thead><tbody>'+rows+'</tbody></table></body></html>';
+  return '<!doctype html><html lang="vi"><head><meta charset="utf-8"><style>@page{size:A4 portrait;margin:12mm}body{font-family:"Times New Roman","Liberation Serif",serif;font-size:10.5pt;color:#111}h1{text-align:center;font-size:15pt;margin:0 0 5pt}p{text-align:center;margin:0 0 5pt}table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:12pt}thead{display:table-header-group}th,td{border:1px solid #666;padding:5pt;vertical-align:middle;overflow-wrap:anywhere;word-wrap:break-word}th{background:#eee;text-align:center;font-weight:bold}tbody,tr{page-break-inside:avoid;break-inside:avoid}.day,.session{text-align:center}.day{font-weight:bold}</style></head><body><h1>LỊCH CÔNG TÁC TUẦN UBND TỈNH QUẢNG TRỊ</h1><p>Từ ngày '+date(week)+' đến ngày '+date(weeklyAddDay_(week,6))+'</p>'+(leader?'<p><b>'+esc(leader)+'</b></p>':'')+'<table><colgroup><col style="width:12%"><col style="width:7%"><col style="width:36%"><col style="width:16%"><col style="width:29%"></colgroup><thead><tr><th>Thứ / ngày</th><th>Buổi</th><th>Nội dung công việc</th><th>Địa điểm</th><th>Thành phần tham dự</th></tr></thead>'+rows+'</table></body></html>';
 }
